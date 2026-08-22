@@ -44,8 +44,9 @@ import {
   isChampionsMatchWeek, isEuropaLeagueMatchWeek, getSemanaCalendario, 
   getTotalCalendarWeeks, isChampionsWeek, getNextChampionsWeek, 
   isEuropaLeagueWeek, getNextEuropaLeagueWeek,
+  isWorldCupMatchWeek, getNextWorldCupWeek,
   getWeekForLeagueMatchday, getLeagueMatchdayForWeek,
-  getExpectedCupMatchdayForWeek
+  getExpectedCupMatchdayForWeek, getCompetitionWeekStatus
 } from '@/lib/seasonCalendar';
 import { sanitizeChampionsBracket, syncChampionsRepescadosToUEL, sanitizeEuropaLeagueTeams } from '@/lib/championsSanitizer';
 import { ALL_WORLD_CUP_TEAMS, buildDynamicWCPool } from '@/lib/worldCup';
@@ -72,6 +73,7 @@ import { CompetitionLogo } from '@/components/CompetitionLogo';
 
 import championsStadiumBg from '@/assets/images/champions_league_stadium_1786921289637.jpg';
 import worldCupStadiumDayBg from '@/assets/images/world_cup_stadium_day_1786921535635.jpg';
+import careerGrassGoalBg from '@/assets/images/career_pitch_background_1787435795856.jpg';
 
 function DiceFootballApp() {
   const [view, setView] = useState('hub');
@@ -5226,8 +5228,8 @@ function DiceFootballApp() {
           }
         }
     }
-    // Avanzar la semana del calendario de la temporada únicamente si es juego standalone (no en modo carrera)
-    if (!targetCompId && !career?.active && view !== 'careerMatch') {
+    // Avanzar la semana del calendario de la temporada únicamente si es juego standalone de clubes (no en Copa del Mundo independiente ni en modo carrera)
+    if (!targetCompId && !career?.active && view !== 'careerMatch' && cId !== 'C2' && !currentComp?.isWorldCup) {
       setSeasonState(s => ({
         ...s,
         currentWeek: Math.min(43, (s.currentWeek || 1) + 1)
@@ -6737,76 +6739,112 @@ function DiceFootballApp() {
             </div>
 
             {(() => {
-              const schedule = generateLeagueSchedule(currentTeams);
-              const isDone = currentMatchday >= schedule.length;
-              if (isLeague && isDone) {
-                 return (
-                   <button disabled className='w-full bg-slate-800/60 text-slate-400 py-4 rounded-2xl text-[10px] font-black uppercase italic tracking-widest shadow-inner border border-white/10'>
-                     Temporada Finalizada
-                   </button>
-                 );
-              }
-              if (isLeague && !canPlayGlobalMatchday) {
-                 return (
-                   <button disabled className='w-full bg-slate-800/60 text-slate-400 py-4 rounded-2xl text-[10px] font-black uppercase italic tracking-widest shadow-inner border border-white/10'>
-                     Esperando Jornada Global {globalMatchday + 1}
-                   </button>
-                 );
-              }
-              const isClGroupsFinished = Boolean(!comps['C1'] || comps['C1'].phase !== 'groups' || (comps['C1'].matchday || 0) >= 6);
-              const isUclWaitingForRepescados = activeCompId === 'C3' && activeComp.phase !== 'Dieciseisavos' && !isClGroupsFinished;
-              if (isUclWaitingForRepescados) {
+              const compWeekStatus = getCompetitionWeekStatus(activeCompId, activeComp, currentWeek, comps);
+
+              // 1. Si la competición no está en su semana oficial o está bloqueada por calendario, mostrar panel informativo
+              if (!compWeekStatus.canPlayOrSimulate) {
                 return (
-                  <div className='p-4 rounded-2xl bg-gradient-to-r from-amber-950/60 via-slate-900/90 to-amber-950/50 border border-amber-500/30 text-center space-y-2'>
-                    <div className='flex items-center justify-center gap-1.5 text-amber-300 font-black text-xs uppercase tracking-wider'>
-                      <Trophy size={14} className='text-amber-400' />
-                      Esperando Cierre de Grupos UCL (Semana 18)
+                  <div className='p-4 rounded-2xl bg-gradient-to-br from-slate-900/95 via-slate-900/80 to-amber-950/40 border border-amber-500/40 text-center space-y-3 shadow-xl'>
+                    <div className='flex items-center justify-between gap-2'>
+                      <span className={`text-[8px] sm:text-[8.5px] font-black uppercase px-2.5 py-1 rounded-full border ${
+                        compWeekStatus.badgeColor === 'emerald' ? 'bg-emerald-950/60 border-emerald-400/40 text-emerald-300' :
+                        compWeekStatus.badgeColor === 'blue' ? 'bg-blue-950/60 border-blue-400/40 text-blue-300' :
+                        compWeekStatus.badgeColor === 'amber' ? 'bg-amber-950/60 border-amber-400/40 text-amber-300' :
+                        'bg-slate-800/80 border-white/20 text-slate-300'
+                      }`}>
+                        {compWeekStatus.badge}
+                      </span>
+                      <span className='text-[8px] font-black uppercase text-slate-300 bg-black/40 px-2 py-0.5 rounded border border-white/5'>
+                        Semana Actual: {currentWeek}
+                      </span>
                     </div>
-                    <p className='text-[10px] text-slate-300 font-medium leading-relaxed'>
-                      Los 8 repescados de Champions League (3.ºs de grupo) se definirán tras la Jornada 6. Los Octavos de Europa League se disputarán a la par con la Champions League en la <strong>Semana 25 (Ida)</strong> y <strong>Semana 27 (Vuelta)</strong>.
-                    </p>
+
+                    <div className='space-y-1 text-left bg-black/40 p-3 rounded-xl border border-white/10'>
+                      <div className='flex items-center gap-1.5 text-xs font-black uppercase italic text-white'>
+                        <Calendar size={14} className='text-amber-400 shrink-0' />
+                        <span>{compWeekStatus.title}</span>
+                      </div>
+                      <p className='text-[10px] text-slate-300 font-medium leading-relaxed mt-1'>
+                        {compWeekStatus.message}
+                      </p>
+                    </div>
+
+                    <div className='flex items-center justify-between text-[8px] font-bold text-slate-300 px-1'>
+                      <span>Estado de Programación:</span>
+                      <span className='text-amber-300 font-black uppercase'>
+                        {compWeekStatus.targetWeek ? `Semana ${compWeekStatus.targetWeek} · ${compWeekStatus.scheduledRoundName}` : compWeekStatus.scheduledRoundName}
+                      </span>
+                    </div>
+
+                    <div className='pt-1 flex gap-2'>
+                      <button
+                        onClick={() => setView('hub')}
+                        className='flex-1 bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl text-[9px] font-black uppercase italic tracking-wider border border-white/10 active:scale-95 transition-all flex items-center justify-center gap-1.5'
+                      >
+                        <ChevronLeft size={13} /> Ir al Hub de Temporada
+                      </button>
+                      <button
+                        onClick={() => setIsSeasonCalendarOpen(true)}
+                        className='flex-1 bg-blue-600/80 hover:bg-blue-500 text-white py-3 rounded-xl text-[9px] font-black uppercase italic tracking-wider border border-blue-400/30 active:scale-95 transition-all flex items-center justify-center gap-1.5'
+                      >
+                        <Calendar size={13} /> Ver Calendario Oficial
+                      </button>
+                    </div>
                   </div>
                 );
               }
-              const isEuropeanOffWeek = (activeCompId === 'C1' && !isChampionsDate) || (activeCompId === 'C3' && !isEuropaDate);
-              const targetWeek = activeCompId === 'C1' ? nextClWeek : nextUelWeek;
 
+              // 2. Si la competición está en su semana oficial habilitada:
               return (
                 <div className='space-y-2'>
-                  {isEuropeanOffWeek && (
-                    <div className='px-3 py-2 rounded-xl bg-blue-950/60 border border-blue-400/20 flex items-center justify-between text-left'>
-                      <span className='text-[8.5px] font-black uppercase tracking-wider text-blue-300 flex items-center gap-1'>
-                        <Trophy size={11} className='text-amber-400' /> Calendario Continental · Semana {targetWeek || 7}
-                      </span>
-                      <span className='text-[8px] font-bold text-slate-300'>Semana actual: {currentWeek}</span>
-                    </div>
-                  )}
+                  <div className='px-3 py-2 rounded-xl bg-emerald-950/60 border border-emerald-400/30 flex items-center justify-between text-left'>
+                    <span className='text-[8.5px] font-black uppercase tracking-wider text-emerald-300 flex items-center gap-1'>
+                      <Sparkles size={11} className='text-amber-400' /> {compWeekStatus.badge}
+                    </span>
+                    <span className='text-[8px] font-bold text-slate-300'>
+                      {activeCompId === 'C2' || activeComp.isWorldCup ? '32 Selecciones' : `Semana ${currentWeek} de 42`}
+                    </span>
+                  </div>
+
                   <button onClick={() => startMatch(homeId, awayId, isDiv2)} className='w-full bg-slate-800/90 hover:bg-slate-700/90 text-white py-4 rounded-2xl text-xs font-black uppercase italic tracking-widest border border-white/20 active:scale-95 transition-colors flex flex-col items-center justify-center'>
                     <span>{activeComp.phase === 'Final' ? 'Gran Final' : activeComp.phase === 'TercerPuesto' ? 'Partido por 3º Puesto' : ('Jugar ' + (isLeague || activeComp.phase === 'groups' ? 'Jornada ' + (currentMatchday + 1) : activeComp.phase + (activeCompId === 'C1' ? (activeComp.matchday % 2 === 0 ? ' (Ida)' : ' (Vuelta)') : '')))}</span>
                     <span className='text-[7px] opacity-60 mt-0.5 tracking-normal text-slate-300'>{homeTeam?.opp} vs {awayTeam?.opp} TIROS DISPONIBLES</span>
                   </button>
-                {isLeague && leaguePendingNow && (
-                  <button onClick={() => simulateLeagueToGlobal(activeCompId)} className='w-full bg-slate-800/90 hover:bg-slate-700/90 border border-white/15 text-slate-200 py-3.5 rounded-2xl text-[10px] font-black uppercase italic tracking-widest active:scale-95 transition-colors flex items-center justify-center gap-2'>
-                    <Dices size={15} className='text-slate-300' /> Simular Jornada {currentMatchday + 1}
-                  </button>
-                )}
-                {!isLeague && (
-                  <div className='grid grid-cols-2 gap-2'>
-                    <button
-                      onClick={() => processCupRound(null)}
-                      disabled={cupAutoSim}
-                      className='bg-slate-800/90 hover:bg-slate-700/90 border border-white/15 text-slate-200 py-3.5 rounded-2xl text-[9px] font-black uppercase italic tracking-widest active:scale-95 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40'
-                    >
-                      <Dices size={14} className='text-slate-300' /> Simular {activeComp.phase === 'groups' ? 'Jornada' : 'Ronda'}
+
+                  {isLeague && leaguePendingNow && (
+                    <button onClick={() => simulateLeagueToGlobal(activeCompId)} className='w-full bg-slate-800/90 hover:bg-slate-700/90 border border-white/15 text-slate-200 py-3.5 rounded-2xl text-[10px] font-black uppercase italic tracking-widest active:scale-95 transition-colors flex items-center justify-center gap-2'>
+                      <Dices size={15} className='text-slate-300' /> Simular Jornada {currentMatchday + 1}
                     </button>
-                    <button
-                      onClick={() => setCupAutoSim(v => !v)}
-                      className={'py-3.5 rounded-2xl text-[9px] font-black uppercase italic tracking-widest active:scale-95 transition-colors flex items-center justify-center gap-1.5 border ' + (cupAutoSim ? 'bg-red-900/80 border-red-500/40 text-red-200' : 'bg-slate-800/90 hover:bg-slate-700/90 border-white/15 text-slate-200')}
-                    >
-                      {cupAutoSim ? (<><X size={14}/> Detener</>) : (<><Wand2 size={14} className='text-slate-300' /> Simular Todo</>)}
-                    </button>
-                  </div>
-                )}
+                  )}
+
+                  {!isLeague && (
+                    <div>
+                      {activeCompId === 'C2' || activeComp.isWorldCup ? (
+                        <div className='grid grid-cols-2 gap-2'>
+                          <button
+                            onClick={() => processCupRound(null)}
+                            disabled={cupAutoSim}
+                            className='bg-slate-800/90 hover:bg-slate-700/90 border border-white/15 text-slate-200 py-3.5 rounded-2xl text-[9px] font-black uppercase italic tracking-widest active:scale-95 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40'
+                          >
+                            <Dices size={14} className='text-slate-300' /> Simular {activeComp.phase === 'groups' ? 'Jornada' : 'Ronda'}
+                          </button>
+                          <button
+                            onClick={() => setCupAutoSim(v => !v)}
+                            className={'py-3.5 rounded-2xl text-[9px] font-black uppercase italic tracking-widest active:scale-95 transition-colors flex items-center justify-center gap-1.5 border ' + (cupAutoSim ? 'bg-red-900/80 border-red-500/40 text-red-200' : 'bg-slate-800/90 hover:bg-slate-700/90 border-white/15 text-slate-200')}
+                          >
+                            {cupAutoSim ? (<><X size={14}/> Detener</>) : (<><Wand2 size={14} className='text-slate-300' /> Simular Todo</>)}
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => processCupRound(null)}
+                          className='w-full bg-slate-800/90 hover:bg-slate-700/90 border border-white/15 text-slate-200 py-3.5 rounded-2xl text-[10px] font-black uppercase italic tracking-widest active:scale-95 transition-colors flex items-center justify-center gap-2'
+                        >
+                          <Dices size={15} className='text-slate-300' /> Simular {activeComp.phase === 'groups' ? 'Jornada Actual' : 'Ronda Actual'}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })()}
@@ -7540,12 +7578,16 @@ function DiceFootballApp() {
     )
   );
 
+  const isCareerActive = Boolean(
+    view === 'career' || view === 'careerSelect' || view === 'careerMatch'
+  );
+
   return (
     <div className='relative min-h-screen selection:bg-cyan-500/30 font-sans text-slate-100 overflow-hidden'>
-      {/* Champions League Night Stadium Background (Default & All Other Modes) */}
+      {/* Champions League Night Stadium Background (Default & Global Hub / Competitions) */}
       <div 
         className={`fixed inset-0 bg-cover bg-center bg-no-repeat z-0 scale-105 transition-all duration-700 ${
-          isWorldCupActive ? 'opacity-0 pointer-events-none' : 'opacity-100'
+          isWorldCupActive || isCareerActive ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}
         style={{ backgroundImage: `url(${championsStadiumBg})` }}
       />
@@ -7553,13 +7595,29 @@ function DiceFootballApp() {
       {/* World Cup Daytime Stadium Background with Lush Grass (Only in World Cup Interface) */}
       <div 
         className={`fixed inset-0 bg-cover bg-center bg-no-repeat z-0 scale-105 transition-all duration-700 ${
-          isWorldCupActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          isWorldCupActive && !isCareerActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
         style={{ backgroundImage: `url(${worldCupStadiumDayBg})` }}
       />
 
+      {/* Career Mode Background: Pristine Grass Pitch with Ball near the Goalpost */}
+      <div 
+        className={`fixed inset-0 bg-cover bg-center bg-no-repeat z-0 scale-105 transition-all duration-700 ${
+          isCareerActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+        style={{ backgroundImage: `url(${careerGrassGoalBg})` }}
+      />
+
       {/* Lighting & Atmosphere Layers: Clean, Subtle, Dark Stadium Vignette */}
-      {isWorldCupActive ? (
+      {isCareerActive ? (
+        <>
+          {/* Career Mode Vignette: Rich Grass Atmosphere with Deep Pitch Dark Contrast */}
+          <div className='fixed inset-0 bg-gradient-to-b from-slate-950/75 via-slate-950/55 to-slate-950/90 z-0 backdrop-blur-[0.5px] pointer-events-none transition-all duration-500' />
+          {/* Natural Grass Green Ambient Underglow */}
+          <div className='fixed -bottom-20 inset-x-0 h-80 bg-emerald-950/40 blur-3xl z-0 pointer-events-none' />
+          <div className='fixed top-0 inset-x-0 h-64 bg-slate-950/40 blur-2xl z-0 pointer-events-none' />
+        </>
+      ) : isWorldCupActive ? (
         <>
           {/* Daylight Stadium Vignette & Natural Contrast */}
           <div className='fixed inset-0 bg-gradient-to-b from-slate-950/60 via-slate-900/40 to-slate-950/80 z-0 backdrop-blur-[0.5px] pointer-events-none transition-all duration-500' />
