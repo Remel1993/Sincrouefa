@@ -13,6 +13,7 @@ import {
   getSemanaCalendario, getTotalCalendarWeeks,
   SEASON_CALENDAR_42_WEEKS, isChampionsWeek, getNextChampionsWeek, 
   isEuropaLeagueWeek, getNextEuropaLeagueWeek,
+  isWorldCupMatchWeek, getNextWorldCupWeek,
   getWeekForLeagueMatchday, getExpectedCupMatchdayForWeek
 } from '@/lib/seasonCalendar';
 import { divTotalRounds, leagueTotalRounds, leagueSeasonOver, leagueProgressLabel } from '@/lib/leagueEngine';
@@ -64,6 +65,8 @@ export const HubView = ({
   const nextClWeek = getNextChampionsWeek(currentWeek);
   const isEuropaDate = isEuropaLeagueMatchWeek(currentWeek) || (allLeaguesFinished && currentWeek <= 39 && !comps['C3']?.showWinner && comps['C3']?.phase !== 'Terminado');
   const nextUelWeek = getNextEuropaLeagueWeek(currentWeek);
+  const isWcDate = isWorldCupMatchWeek(currentWeek) || (allLeaguesFinished && currentWeek >= 41 && !comps['C2']?.showWinner && comps['C2']?.phase !== 'Terminado');
+  const nextWcWeek = getNextWorldCupWeek(currentWeek);
   const pending = pendingLeagueIds || [];
   const leagues = [
     { id: 'L1', name: 'LaLiga', flag: '🇪🇸', country: 'España' },
@@ -159,6 +162,30 @@ export const HubView = ({
       }
       return (
         <span className='text-[6.5px] sm:text-[7.5px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-500/30 text-amber-300 border border-amber-400/30 whitespace-nowrap'>
+          Esta Semana
+        </span>
+      );
+    }
+    if (fix.competicion === 'MUNDIAL' || fix.competicion === 'SELECCIONES') {
+      const c2 = comps?.['C2'];
+      if (c2?.showWinner || c2?.phase === 'Terminado') {
+        return (
+          <span className='text-[6.5px] sm:text-[7.5px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-700/60 text-slate-300 border border-white/10 whitespace-nowrap flex items-center gap-1'>
+            <Check size={8} className='text-sky-400' /> Jugado
+          </span>
+        );
+      }
+      const expMd = getExpectedCupMatchdayForWeek('C2', currentWeek);
+      const c2Md = c2?.matchday || 0;
+      if (expMd !== null && c2Md >= expMd) {
+        return (
+          <span className='text-[6.5px] sm:text-[7.5px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-700/60 text-slate-300 border border-white/10 whitespace-nowrap flex items-center gap-1'>
+            <Check size={8} className='text-sky-400' /> Jugado
+          </span>
+        );
+      }
+      return (
+        <span className='text-[6.5px] sm:text-[7.5px] font-black uppercase px-1.5 py-0.5 rounded bg-sky-500/30 text-sky-300 border border-sky-400/30 whitespace-nowrap'>
           Esta Semana
         </span>
       );
@@ -472,7 +499,9 @@ export const HubView = ({
             </h4>
             <div className='mt-0.5'>
               <span className='text-[7px] sm:text-[7.5px] font-black uppercase px-1.5 py-0.5 rounded-md bg-sky-500/25 text-sky-300 border border-sky-400/30 truncate block max-w-full'>
-                {comps['C2']?.phase === 'groups' ? 'Grupos' : comps['C2']?.phase || '32 Países'}
+                {comps['C2']?.showWinner || comps['C2']?.phase === 'Terminado'
+                  ? 'Finalizado'
+                  : (comps['C2']?.phase === 'groups' ? 'Grupos' : (comps['C2']?.phase || '32 Países'))}
               </span>
             </div>
           </div>
