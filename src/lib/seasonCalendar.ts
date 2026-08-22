@@ -1,6 +1,6 @@
 export type Slot = "FINDE" | "MITAD" | "UNICO";
 
-export type Competicion = "LIGA" | "CHAMPIONS" | "EUROPA_LEAGUE";
+export type Competicion = "LIGA" | "CHAMPIONS" | "EUROPA_LEAGUE" | "MUNDIAL";
 
 export interface Fixture {
   id: string;
@@ -98,13 +98,13 @@ export const SEASON_CALENDAR_42_WEEKS: SemanaCalendario[] = [
         desc: "Tercera fecha de liga regular."
       },
       {
-        id: "w5-rest-break",
-        competicion: "LIGA",
-        ronda: "Puesta a Punto y Descanso",
+        id: "w5-wc-j1",
+        competicion: "MUNDIAL",
+        ronda: "Fase de Grupos — J1",
         slot: "MITAD",
-        esPartido: false,
-        title: "Puesta a Punto del Plantel",
-        desc: "Ajustes tácticos, recuperación física y gestión interna del club."
+        esPartido: true,
+        title: "Copa del Mundo · Grupos J1 (Ventana FIFA)",
+        desc: "Primera fecha oficial de selecciones nacionales en la fase de grupos."
       }
     ]
   },
@@ -292,13 +292,13 @@ export const SEASON_CALENDAR_42_WEEKS: SemanaCalendario[] = [
         desc: "Undécima fecha de liga."
       },
       {
-        id: "w13-rest-break",
-        competicion: "LIGA",
-        ronda: "Puesta a Punto de Otoño",
+        id: "w13-wc-j2",
+        competicion: "MUNDIAL",
+        ronda: "Fase de Grupos — J2",
         slot: "MITAD",
-        esPartido: false,
-        title: "Descanso Táctico y Recuperación",
-        desc: "Sesión intensiva de recuperación física y análisis táctico."
+        esPartido: true,
+        title: "Copa del Mundo · Grupos J2 (Ventana FIFA)",
+        desc: "Segunda fecha oficial de grupos para las selecciones nacionales."
       }
     ]
   },
@@ -493,6 +493,15 @@ export const SEASON_CALENDAR_42_WEEKS: SemanaCalendario[] = [
         leagueMatchday: 19,
         title: "Liga · Jornada 19 (Fin de 1ª Vuelta)",
         desc: "Cierre de la primera mitad del campeonato liguero."
+      },
+      {
+        id: "w21-wc-j3",
+        competicion: "MUNDIAL",
+        ronda: "Fase de Grupos — J3",
+        slot: "MITAD",
+        esPartido: true,
+        title: "Copa del Mundo · Grupos J3 (Cierre de Grupos)",
+        desc: "Última fecha de grupos de selecciones: definición de clasificados a Octavos de Final."
       }
     ]
   },
@@ -690,6 +699,15 @@ export const SEASON_CALENDAR_42_WEEKS: SemanaCalendario[] = [
         leagueMatchday: 27,
         title: "Liga · Jornada 27",
         desc: "Vigésimo séptima fecha de liga."
+      },
+      {
+        id: "w29-wc-r16",
+        competicion: "MUNDIAL",
+        ronda: "Octavos de Final",
+        slot: "MITAD",
+        esPartido: true,
+        title: "Copa del Mundo · Octavos de Final",
+        desc: "Inicio de las eliminatorias directas entre las 16 mejores selecciones del planeta."
       }
     ]
   },
@@ -855,6 +873,15 @@ export const SEASON_CALENDAR_42_WEEKS: SemanaCalendario[] = [
         leagueMatchday: 33,
         title: "Liga · Jornada 33",
         desc: "Trigésimo tercera fecha de liga."
+      },
+      {
+        id: "w35-wc-qf",
+        competicion: "MUNDIAL",
+        ronda: "Cuartos de Final",
+        slot: "MITAD",
+        esPartido: true,
+        title: "Copa del Mundo · Cuartos de Final",
+        desc: "Las 8 selecciones supervivientes disputan el pase a semifinales."
       }
     ]
   },
@@ -990,6 +1017,15 @@ export const SEASON_CALENDAR_42_WEEKS: SemanaCalendario[] = [
         europeanRound: "FINAL",
         title: "Gran Final de UEFA Champions League",
         desc: "La máxima final continental europea por la 'Orejona'."
+      },
+      {
+        id: "w41-wc-sf",
+        competicion: "MUNDIAL",
+        ronda: "Semifinales",
+        slot: "MITAD",
+        esPartido: true,
+        title: "Copa del Mundo · Semifinales",
+        desc: "Duelos directos por el billete a la gran final mundial."
       }
     ]
   },
@@ -997,6 +1033,15 @@ export const SEASON_CALENDAR_42_WEEKS: SemanaCalendario[] = [
     weekIndex: 42,
     mes: "Junio",
     fixtures: [
+      {
+        id: "w42-wc-final",
+        competicion: "MUNDIAL",
+        ronda: "Gran Final de la Copa del Mundo",
+        slot: "UNICO",
+        esPartido: true,
+        title: "Gran Final de la Copa del Mundo FIFA",
+        desc: "El partido definitivo del fútbol internacional: coronación de la selección campeona del mundo."
+      },
       {
         id: "w42-financial-close",
         competicion: "LIGA",
@@ -1086,6 +1131,75 @@ export const getNextEuropaLeagueMatchWeek = (currentWeek: number): number | null
   return next || (currentWeek >= 39 ? null : 39);
 };
 
+// Semanas oficiales con fechas de Copa del Mundo / Selecciones Nacionales (7 fechas)
+export const WORLD_CUP_MATCH_WEEKS = [5, 13, 21, 29, 35, 41, 42];
+export const WORLD_CUP_CALENDAR_WEEKS = [5, 13, 21, 29, 35, 41, 42];
+
+export const isWorldCupWeek = (weekIndex: number): boolean => {
+  return WORLD_CUP_CALENDAR_WEEKS.includes(weekIndex);
+};
+
+export const isWorldCupMatchWeek = (weekIndex: number): boolean => {
+  return WORLD_CUP_MATCH_WEEKS.includes(weekIndex);
+};
+
+export const getNextWorldCupWeek = (currentWeek: number): number | null => {
+  const next = WORLD_CUP_CALENDAR_WEEKS.find(w => w > currentWeek);
+  return next || (currentWeek >= 42 ? null : 42);
+};
+
+export const getNextWorldCupMatchWeek = (currentWeek: number): number | null => {
+  const next = WORLD_CUP_MATCH_WEEKS.find(w => w >= currentWeek);
+  return next || (currentWeek >= 42 ? null : 42);
+};
+
+export const getWcRoundName = (roundIndex: number): string => {
+  switch (roundIndex) {
+    case 1: return "Fase de Grupos (J1)";
+    case 2: return "Fase de Grupos (J2)";
+    case 3: return "Fase de Grupos (J3)";
+    case 4: return "Octavos de Final";
+    case 5: return "Cuartos de Final";
+    case 6: return "Semifinales";
+    case 7: return "Gran Final y 3º Puesto";
+    default: return "Copa del Mundo";
+  }
+};
+
+export const getClRoundName = (roundIndex: number): string => {
+  switch (roundIndex) {
+    case 1: return "Fase de Grupos (J1)";
+    case 2: return "Fase de Grupos (J2)";
+    case 3: return "Fase de Grupos (J3)";
+    case 4: return "Fase de Grupos (J4)";
+    case 5: return "Fase de Grupos (J5)";
+    case 6: return "Fase de Grupos (J6 - Cierre)";
+    case 7: return "Octavos de Final (Ida)";
+    case 8: return "Octavos de Final (Vuelta)";
+    case 9: return "Cuartos de Final (Ida)";
+    case 10: return "Cuartos de Final (Vuelta)";
+    case 11: return "Semifinales (Ida)";
+    case 12: return "Semifinales (Vuelta)";
+    case 13: return "Gran Final";
+    default: return "Champions League";
+  }
+};
+
+export const getUelRoundName = (roundIndex: number): string => {
+  switch (roundIndex) {
+    case 1: return "Dieciseisavos (Ida)";
+    case 2: return "Dieciseisavos (Vuelta)";
+    case 3: return "Octavos de Final (Ida)";
+    case 4: return "Octavos de Final (Vuelta)";
+    case 5: return "Cuartos de Final (Ida)";
+    case 6: return "Cuartos de Final (Vuelta)";
+    case 7: return "Semifinales (Ida)";
+    case 8: return "Semifinales (Vuelta)";
+    case 9: return "Gran Final";
+    default: return "Europa League";
+  }
+};
+
 export const getExpectedCupMatchdayForWeek = (compId: string, week: number): number | null => {
   if (compId === 'C1') {
     const clMap: Record<number, number> = {
@@ -1100,5 +1214,300 @@ export const getExpectedCupMatchdayForWeek = (compId: string, week: number): num
     };
     return uelMap[week] ?? null;
   }
+  if (compId === 'C2') {
+    const wcMap: Record<number, number> = {
+      5: 1, 13: 2, 21: 3, 29: 4, 35: 5, 41: 6, 42: 7
+    };
+    return wcMap[week] ?? null;
+  }
   return null;
+};
+
+export interface CompetitionWeekStatus {
+  isScheduledThisWeek: boolean;
+  canPlayOrSimulate: boolean;
+  reason: 'IN_WEEK' | 'OFF_WEEK' | 'WAITING_CALENDAR' | 'SEASON_COMPLETED' | 'WAITING_REPESCADOS' | 'PRESEASON';
+  title: string;
+  badge: string;
+  badgeColor: 'emerald' | 'amber' | 'blue' | 'red' | 'slate';
+  message: string;
+  scheduledRoundName: string;
+  currentWeek: number;
+  targetWeek: number | null;
+  compType: 'league' | 'champions' | 'europa' | 'worldcup';
+}
+
+export const getCompetitionWeekStatus = (
+  comp: any,
+  currentWeek: number,
+  isDiv2: boolean = false,
+  allComps?: Record<string, any>
+): CompetitionWeekStatus => {
+  const compId = comp?.id || '';
+  const isLeague = comp?.type === 'league';
+  const isWC = compId === 'C2' || Boolean(comp?.isWorldCup) || comp?.name?.toLowerCase().includes('mundial') || comp?.name?.toLowerCase().includes('world cup');
+  const isCL = compId === 'C1' || comp?.name?.toLowerCase().includes('champions');
+  const isUEL = compId === 'C3' || comp?.name?.toLowerCase().includes('europa');
+
+  if (isLeague) {
+    const teams = isDiv2 ? (comp?.teams2 || []) : (comp?.teams || []);
+    const matchday = isDiv2 ? (comp?.matchday2 || 0) : (comp?.matchday || 0);
+    const totalMatchdays = teams.length > 0 ? (teams.length - 1) * 2 : 38;
+    const isFinished = matchday >= totalMatchdays;
+
+    if (isFinished) {
+      return {
+        isScheduledThisWeek: false,
+        canPlayOrSimulate: false,
+        reason: 'SEASON_COMPLETED',
+        title: 'Temporada Regular Finalizada',
+        badge: '🏆 TEMPORADA CONCLUIDA',
+        badgeColor: 'slate',
+        message: `La liga regular ${isDiv2 ? '(2ª Div)' : '(1ª Div)'} ha disputado todas sus jornadas oficiales (${totalMatchdays}/${totalMatchdays}).`,
+        scheduledRoundName: 'Liga Finalizada',
+        currentWeek,
+        targetWeek: null,
+        compType: 'league'
+      };
+    }
+
+    if (currentWeek < 3) {
+      return {
+        isScheduledThisWeek: false,
+        canPlayOrSimulate: false,
+        reason: 'PRESEASON',
+        title: 'Semanas de Pretemporada y Sorteo Europeo',
+        badge: '⏳ PRETEMPORADA OFICIAL',
+        badgeColor: 'amber',
+        message: 'Las ligas domésticas no disputan encuentros oficiales en las Semanas 1 y 2 de pretemporada y sorteos UEFA. El debut liguero (Jornada 1) está programado para la Semana 3.',
+        scheduledRoundName: 'Jornada 1',
+        currentWeek,
+        targetWeek: 3,
+        compType: 'league'
+      };
+    }
+
+    const nextMd = matchday + 1;
+    const targetWeekForNextMd = getWeekForLeagueMatchday(nextMd);
+    const scheduledLeagueMdThisWeek = getLeagueMatchdayForWeek(currentWeek);
+
+    if (scheduledLeagueMdThisWeek !== null && nextMd <= scheduledLeagueMdThisWeek) {
+      return {
+        isScheduledThisWeek: true,
+        canPlayOrSimulate: true,
+        reason: 'IN_WEEK',
+        title: `Jornada ${nextMd} · Semana ${currentWeek}`,
+        badge: '🟢 JORNADA OFICIAL PROGRAMADA',
+        badgeColor: 'emerald',
+        message: `La Jornada ${nextMd} está programada en el calendario oficial para disputarse en la Semana ${currentWeek}.`,
+        scheduledRoundName: `Jornada ${nextMd}`,
+        currentWeek,
+        targetWeek: currentWeek,
+        compType: 'league'
+      };
+    }
+
+    if (currentWeek < targetWeekForNextMd) {
+      return {
+        isScheduledThisWeek: false,
+        canPlayOrSimulate: false,
+        reason: 'WAITING_CALENDAR',
+        title: `Sin partidos de Liga en Semana ${currentWeek}`,
+        badge: `⏸️ PRÓXIMA FECHA: SEMANA ${targetWeekForNextMd}`,
+        badgeColor: 'amber',
+        message: `Esta liga ya disputó su partido correspondiente a la Semana ${currentWeek} (Jornada ${matchday}). La Jornada ${nextMd} se jugará en la Semana ${targetWeekForNextMd}. Avanza la temporada desde el Hub para continuar.`,
+        scheduledRoundName: `Jornada ${nextMd}`,
+        currentWeek,
+        targetWeek: targetWeekForNextMd,
+        compType: 'league'
+      };
+    }
+
+    return {
+      isScheduledThisWeek: false,
+      canPlayOrSimulate: false,
+      reason: 'OFF_WEEK',
+      title: `Semana ${currentWeek} · Sin Jornada de Liga`,
+      badge: '⏸️ SEMANA SIN PARTIDOS DE LIGA',
+      badgeColor: 'amber',
+      message: `La Semana ${currentWeek} no tiene jornadas de liga doméstica programadas (reservada para torneos continentales y selecciones).`,
+      scheduledRoundName: `Jornada ${nextMd}`,
+      currentWeek,
+      targetWeek: targetWeekForNextMd,
+      compType: 'league'
+    };
+  }
+
+  if (isCL) {
+    const isFinished = comp?.phase === 'Terminado' || (comp?.bracket?.Final && comp?.bracket?.Final?.sh !== null && comp?.bracket?.Final?.sh !== undefined);
+    if (isFinished) {
+      return {
+        isScheduledThisWeek: false,
+        canPlayOrSimulate: false,
+        reason: 'SEASON_COMPLETED',
+        title: 'UEFA Champions League Concluida',
+        badge: '🏆 OREJONA CONCLUIDA',
+        badgeColor: 'slate',
+        message: 'La máxima competición continental europea ha coronado a su campeón.',
+        scheduledRoundName: 'Final Concluida',
+        currentWeek,
+        targetWeek: null,
+        compType: 'champions'
+      };
+    }
+
+    const roundIndex = (comp?.matchday || 0) + 1;
+    const targetWeek = CHAMPIONS_MATCH_WEEKS[roundIndex - 1] || 41;
+    const roundName = getClRoundName(roundIndex);
+
+    if (currentWeek === targetWeek) {
+      return {
+        isScheduledThisWeek: true,
+        canPlayOrSimulate: true,
+        reason: 'IN_WEEK',
+        title: `UEFA Champions League · ${roundName}`,
+        badge: '🟢 FECHA EUROPEA OFICIAL',
+        badgeColor: 'emerald',
+        message: `Esta Semana ${currentWeek} está reservada en el calendario europeo para disputar la ${roundName} de la UEFA Champions League.`,
+        scheduledRoundName: roundName,
+        currentWeek,
+        targetWeek,
+        compType: 'champions'
+      };
+    }
+
+    return {
+      isScheduledThisWeek: false,
+      canPlayOrSimulate: false,
+      reason: 'OFF_WEEK',
+      title: 'Semana sin partidos de Champions League',
+      badge: `⏸️ PRÓXIMA FECHA UCL: SEMANA ${targetWeek}`,
+      badgeColor: 'blue',
+      message: `No hay partidos de UEFA Champions League en la Semana ${currentWeek}. La siguiente cita europea (${roundName}) se disputará en la Semana ${targetWeek}. Disputa las jornadas de liga y avanza el calendario desde el Hub.`,
+      scheduledRoundName: roundName,
+      currentWeek,
+      targetWeek,
+      compType: 'champions'
+    };
+  }
+
+  if (isUEL) {
+    const isFinished = comp?.phase === 'Terminado' || (comp?.bracket?.Final && comp?.bracket?.Final?.sh !== null && comp?.bracket?.Final?.sh !== undefined);
+    if (isFinished) {
+      return {
+        isScheduledThisWeek: false,
+        canPlayOrSimulate: false,
+        reason: 'SEASON_COMPLETED',
+        title: 'UEFA Europa League Concluida',
+        badge: '🏆 TROFEO UEL CONCLUIDO',
+        badgeColor: 'slate',
+        message: 'La UEFA Europa League ha coronado a su campeón.',
+        scheduledRoundName: 'Final Concluida',
+        currentWeek,
+        targetWeek: null,
+        compType: 'europa'
+      };
+    }
+
+    const c1 = allComps ? allComps['C1'] : null;
+    const isC1Done = !c1 || c1.phase !== 'groups' || (c1.matchday || 0) >= 6;
+    if (comp?.phase !== 'Dieciseisavos' && !isC1Done) {
+      return {
+        isScheduledThisWeek: false,
+        canPlayOrSimulate: false,
+        reason: 'WAITING_REPESCADOS',
+        title: 'Esperando Repescados de Champions League',
+        badge: '⏳ ESPERANDO GRUPOS UCL (SEM. 18)',
+        badgeColor: 'amber',
+        message: 'Los Octavos de Final de Europa League requieren la resolución de la Fase de Grupos de Champions League (Semana 18) para recibir a los 8 clubes repescados (3.ºs de grupo). Los Octavos se disputarán en la Semana 25 (Ida).',
+        scheduledRoundName: 'Octavos de Final (Ida)',
+        currentWeek,
+        targetWeek: 25,
+        compType: 'europa'
+      };
+    }
+
+    const roundIndex = (comp?.matchday || 0) + 1;
+    const targetWeek = EUROPA_LEAGUE_MATCH_WEEKS[roundIndex - 1] || 39;
+    const roundName = getUelRoundName(roundIndex);
+
+    if (currentWeek === targetWeek) {
+      return {
+        isScheduledThisWeek: true,
+        canPlayOrSimulate: true,
+        reason: 'IN_WEEK',
+        title: `UEFA Europa League · ${roundName}`,
+        badge: '🟢 FECHA EUROPEA OFICIAL',
+        badgeColor: 'emerald',
+        message: `Esta Semana ${currentWeek} está reservada en el calendario europeo para disputar la ${roundName} de la UEFA Europa League.`,
+        scheduledRoundName: roundName,
+        currentWeek,
+        targetWeek,
+        compType: 'europa'
+      };
+    }
+
+    return {
+      isScheduledThisWeek: false,
+      canPlayOrSimulate: false,
+      reason: 'OFF_WEEK',
+      title: 'Semana sin partidos de Europa League',
+      badge: `⏸️ PRÓXIMA FECHA UEL: SEMANA ${targetWeek}`,
+      badgeColor: 'amber',
+      message: `No hay partidos de UEFA Europa League en la Semana ${currentWeek}. La siguiente cita (${roundName}) se disputará en la Semana ${targetWeek}. Avanza las semanas desde el Hub.`,
+      scheduledRoundName: roundName,
+      currentWeek,
+      targetWeek,
+      compType: 'europa'
+    };
+  }
+
+  if (isWC) {
+    const isFinished = comp?.phase === 'Terminado' || (comp?.bracket?.Final && comp?.bracket?.Final?.sh !== null && comp?.bracket?.Final?.sh !== undefined) || comp?.showWinner;
+    if (isFinished) {
+      return {
+        isScheduledThisWeek: false,
+        canPlayOrSimulate: false,
+        reason: 'SEASON_COMPLETED',
+        title: 'Copa del Mundo Concluida',
+        badge: '🏆 SELECCIÓN CAMPEONA CORONADA',
+        badgeColor: 'slate',
+        message: 'La Copa del Mundo FIFA ha finalizado con la coronación de la selección campeona.',
+        scheduledRoundName: 'Mundial Concluido',
+        currentWeek,
+        targetWeek: null,
+        compType: 'worldcup'
+      };
+    }
+
+    const roundName = comp?.phase === 'groups' ? `Jornada ${(comp?.matchday || 0) + 1}` : (comp?.phase || 'Fase Final');
+
+    return {
+      isScheduledThisWeek: true,
+      canPlayOrSimulate: true,
+      reason: 'IN_WEEK',
+      title: `Copa del Mundo FIFA · ${roundName}`,
+      badge: '🌍 TORNEO INDEPENDIENTE DE SELECCIONES',
+      badgeColor: 'emerald',
+      message: 'La Copa del Mundo es independiente: puedes jugar o simular jornadas libremente en cualquier momento.',
+      scheduledRoundName: roundName,
+      currentWeek,
+      targetWeek: null,
+      compType: 'worldcup'
+    };
+  }
+
+  return {
+    isScheduledThisWeek: true,
+    canPlayOrSimulate: true,
+    reason: 'IN_WEEK',
+    title: 'Competición en Curso',
+    badge: '🟢 EN JUEGO',
+    badgeColor: 'emerald',
+    message: 'Partidos listos para disputarse.',
+    scheduledRoundName: 'Partidos Programados',
+    currentWeek,
+    targetWeek: currentWeek,
+    compType: 'league'
+  };
 };
