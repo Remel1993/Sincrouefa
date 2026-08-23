@@ -53,12 +53,8 @@ export const HubView = ({
     if (allLeaguesFinished) {
       return Math.min(42, Math.max(40, rawCurrentWeek));
     }
-    if (globalMatchday > 1) {
-      const expWeek = getWeekForLeagueMatchday(globalMatchday);
-      return expWeek || rawCurrentWeek;
-    }
-    return Math.min(3, Math.max(1, rawCurrentWeek));
-  }, [allLeaguesFinished, championsFinished, globalMatchday, rawCurrentWeek]);
+    return Math.min(42, Math.max(1, rawCurrentWeek));
+  }, [allLeaguesFinished, championsFinished, rawCurrentWeek]);
 
   const weekData = useMemo(() => getSemanaCalendario(currentWeek) || SEASON_CALENDAR_42_WEEKS[0], [currentWeek]);
   const isChampionsDate = isChampionsMatchWeek(currentWeek) || (allLeaguesFinished && currentWeek <= 41 && !comps['C1']?.showWinner && comps['C1']?.phase !== 'Terminado');

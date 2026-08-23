@@ -1768,8 +1768,14 @@ export const CareerView = ({
                             <p className='text-xl font-black italic text-white'>VS</p>
                           </div>
                           <div className='flex-1 text-center'>
-                            <Shield color1='#1e3a8a' color2='#3b82f6' initial={clInfo?.rivalName || 'R'} size='md' />
-                            <p className='text-[9px] font-black uppercase italic mt-1.5 text-blue-200 truncate'>{clInfo?.rivalName || 'Rival Europeo'}</p>
+                            <Shield
+                              color1={clInfo?.rivalTeam?.color1 || '#1e3a8a'}
+                              color2={clInfo?.rivalTeam?.color2 || '#3b82f6'}
+                              initial={clInfo?.rivalTeam?.name || clInfo?.rivalName || 'Rival'}
+                              size='md'
+                              isFlag={clInfo?.rivalTeam?.isFlag}
+                            />
+                            <p className='text-[9px] font-black uppercase italic mt-1.5 text-blue-200 truncate'>{clInfo?.rivalTeam?.name || clInfo?.rivalName || 'Rival Europeo'}</p>
                           </div>
                         </div>
                         <p className='text-[8.5px] font-bold text-slate-300 pt-1 border-t border-white/5'>
@@ -1823,8 +1829,14 @@ export const CareerView = ({
                             <p className='text-xl font-black italic text-white'>VS</p>
                           </div>
                           <div className='flex-1 text-center'>
-                            <Shield color1='#d97706' color2='#ea580c' initial={uelInfo?.rivalName || 'R'} size='md' />
-                            <p className='text-[9px] font-black uppercase italic mt-1.5 text-amber-200 truncate'>{uelInfo?.rivalName || 'Rival Europeo'}</p>
+                            <Shield
+                              color1={uelInfo?.rivalTeam?.color1 || '#d97706'}
+                              color2={uelInfo?.rivalTeam?.color2 || '#ea580c'}
+                              initial={uelInfo?.rivalTeam?.name || uelInfo?.rivalName || 'Rival'}
+                              size='md'
+                              isFlag={uelInfo?.rivalTeam?.isFlag}
+                            />
+                            <p className='text-[9px] font-black uppercase italic mt-1.5 text-amber-200 truncate'>{uelInfo?.rivalTeam?.name || uelInfo?.rivalName || 'Rival Europeo'}</p>
                           </div>
                         </div>
                         <p className='text-[8.5px] font-bold text-slate-300 pt-1 border-t border-white/5'>
