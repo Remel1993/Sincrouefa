@@ -771,25 +771,13 @@ function DiceFootballApp() {
     }
   };
 
-  // El reloj global avanza sólo cuando TODAS las ligas resolvieron su jornada
+  // El reloj global avanza de forma sincronizada en bloque. Cuando todas las ligas concluyen, se marca fase de cierre
   useEffect(() => {
     if (seasonState.phase !== 'leagues') return;
-    if (LEAGUE_IDS.some(id => leaguePendingAt(comps[id], globalMatchday))) return;
     if (LEAGUE_IDS.every(id => leagueSeasonOver(comps[id]))) {
       setSeasonState(s => ({ ...s, phase: 'closing' }));
-      return;
     }
-    setSeasonState(s => {
-      const nextGlobalMd = (s.globalMatchday || 1) + 1;
-      const expectedWeek = getWeekForLeagueMatchday(nextGlobalMd);
-      return {
-        ...s,
-        globalMatchday: nextGlobalMd,
-        currentWeek: Math.max(s.currentWeek || 1, expectedWeek)
-      };
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [comps, globalMatchday, seasonState.phase]);
+  }, [comps, seasonState.phase]);
 
   // Helper para asegurar persistencia manual
   const manualSave = () => {
@@ -910,6 +898,14 @@ function DiceFootballApp() {
     if (rollTimeoutRef.current) { clearTimeout(rollTimeoutRef.current); rollTimeoutRef.current = null; }
     rollingRef.current = false;
     setRolling(false);
+
+    // Verificación estricta de calendario: los partidos solo pueden disputarse en su semana oficial
+    const currentWk = seasonState.currentWeek || 1;
+    const weekStatus = getCompetitionWeekStatus(activeComp, currentWk, isDiv2Context, comps);
+    if (!weekStatus.canPlayOrSimulate && activeComp.type !== 'knockout' && activeCompId !== 'C2' && !activeComp.isWorldCup) {
+      return;
+    }
+
     const sourceTeams = isDiv2Context ? activeComp.teams2 : activeComp.teams;
     let home = sourceTeams.find(t => t.id === homeId);
     let away = sourceTeams.find(t => t.id === awayId);
@@ -1115,10 +1111,11 @@ function DiceFootballApp() {
   };
 
   // Sincroniza (con el motor de dados existente) todas las jornadas pendientes
-  // de las ligas indicadas hasta ponerlas al día con la jornada global.
+  // de las ligas indicadas hasta ponerlas al día con la jornada global / objetivo.
   // Se hace en UNA sola actualización de estado para que nunca se resuelva
   // dos veces la misma jornada, aunque se llame en cadena.
-  const syncLeaguesToGlobal = (ids: string[]) => {
+  const syncLeaguesToGlobal = (ids: string[], targetMatchday?: number) => {
+    const targetMd = targetMatchday ?? globalMatchday;
     setComps(prev => {
       const next = { ...prev };
       let changed = false;
@@ -1129,7 +1126,7 @@ function DiceFootballApp() {
         let touched = false;
         const runDiv = (teamsKey, mdKey, histKey, winKey, isDiv2?: boolean) => {
           let guard = 0;
-          while (divPendingAt(upd[teamsKey], upd[mdKey], globalMatchday) && guard++ < 60) {
+          while (divPendingAt(upd[teamsKey], upd[mdKey], targetMd) && guard++ < 60) {
             const res = simulateDivisionMatchday(upd[teamsKey], upd[mdKey] || 0, upd[histKey] || [], compId, isDiv2);
             if (!res) break;
             touched = true;
@@ -1160,8 +1157,8 @@ function DiceFootballApp() {
   };
 
   // Tras un partido manual: el resto del universo resuelve la misma jornada global.
-  const simulateOtherLeaguesToGlobal = (exceptId) =>
-    syncLeaguesToGlobal(LEAGUE_IDS.filter(id => id !== exceptId));
+  const simulateOtherLeaguesToGlobal = (exceptId, targetMatchday?: number) =>
+    syncLeaguesToGlobal(LEAGUE_IDS.filter(id => id !== exceptId), targetMatchday);
 
   // ==========================================
   // MODO CARRERA (GDD DiceLeague V8 + V11)
@@ -1975,16 +1972,18 @@ function DiceFootballApp() {
       };
     });
 
-    // El mundo sigue jugando: el resto de ligas se pone al día
-    syncLeaguesToGlobal(LEAGUE_IDS.filter(id => id !== compId));
-    syncLeaguesToGlobal([compId]);
-
-    // Simular copas europeas de esta semana si correspondían (únicamente si el usuario no participa activamente en ellas o ya jugó)
     const currentWk = seasonState.currentWeek || 1;
     const weekData = getSemanaCalendario(currentWk);
+    const expLeagueMd = getLeagueMatchdayForWeek(currentWk);
+    const targetLeagueMd = expLeagueMd ?? (careerMd + 1);
+
+    // El mundo sigue jugando: el resto de ligas se pone al día sincronizadamente
+    syncLeaguesToGlobal(LEAGUE_IDS.filter(id => id !== compId), targetLeagueMd);
+    syncLeaguesToGlobal([compId], targetLeagueMd);
+
+    // Simular copas europeas de esta semana si correspondían (únicamente si el usuario no participa activamente en ellas o ya jugó)
     const hasChampions = weekData?.fixtures?.some(f => f.competicion === 'CHAMPIONS' && f.esPartido);
     const hasEuropa = weekData?.fixtures?.some(f => f.competicion === 'EUROPA_LEAGUE' && f.esPartido);
-    const hasLeague = weekData?.fixtures?.some(f => f.competicion === 'LIGA' && f.esPartido);
 
     const isCareerAliveInC1 = Boolean(careerClInfo?.alive && !careerClInfo?.champion && !comps['C1']?.showWinner && comps['C1']?.phase !== 'Terminado');
     const isCareerAliveInC3 = Boolean(careerUelInfo?.alive && !careerUelInfo?.champion && !comps['C3']?.showWinner && comps['C3']?.phase !== 'Terminado');
@@ -2025,11 +2024,14 @@ function DiceFootballApp() {
     const userPendingClThisWeek = hasChampions && isCareerAliveInC1 && ((comps['C1']?.matchday || 0) < (getExpectedCupMatchdayForWeek('C1', currentWk) ?? 99));
     const userPendingUelThisWeek = hasEuropa && isCareerAliveInC3 && ((comps['C3']?.matchday || 0) < (getExpectedCupMatchdayForWeek('C3', currentWk) ?? 99));
 
-    // Solo avanzar la semana si no hay un compromiso europeo pendiente para el mánager en esta misma semana y no se avanzó por sincronización de ligas
-    if (advanceSeasonWeek && !userPendingClThisWeek && !userPendingUelThisWeek && (!hasLeague || allLeaguesFinished)) {
+    // Si ya no quedan compromisos pendientes del usuario en esta semana, avanzar la semana y actualizar la jornada global
+    if (advanceSeasonWeek && !userPendingClThisWeek && !userPendingUelThisWeek) {
+      const nextWk = Math.min(43, currentWk + 1);
+      const nextGlobalMd = getLeagueMatchdayForWeek(nextWk) || Math.min(38, targetLeagueMd + 1);
       setSeasonState(s => ({
         ...s,
-        currentWeek: Math.min(43, (s.currentWeek || 1) + 1)
+        currentWeek: nextWk,
+        globalMatchday: nextGlobalMd
       }));
     }
 
@@ -2446,12 +2448,14 @@ function DiceFootballApp() {
     executeCareerSimulatedMatch(injuryAttr, trainingFeedback, extraPeGained, newImmunityWeeks, injuryOccurredInSim, advanceSeasonWeek);
   };
 
-  const simulateLeagueToGlobal = (compId: string) => {
-    if (career?.active && career.compId === compId && careerTeam && careerFixture && !careerDivisionFinished) {
-      simulateCareerMatchday();
-    } else {
-      syncLeaguesToGlobal([compId]);
+  const simulateLeagueToGlobal = (compId?: string) => {
+    const targetComp = comps[compId || activeCompId];
+    const currentWk = seasonState.currentWeek || 1;
+    const status = getCompetitionWeekStatus(targetComp || activeComp, currentWk, viewDiv === 2, comps);
+    if (!status.canPlayOrSimulate) {
+      return;
     }
+    simulateSeasonWeek();
   };
 
   // Helper para mapear la jornada esperada de copas europeas según la semana del calendario
@@ -2538,13 +2542,15 @@ function DiceFootballApp() {
 
       // 1. Simular jornada de Liga para el resto del mundo
       if (hasLeague || !weekData) {
+        const targetMd = expLeagueMd ?? globalMatchday;
         LEAGUE_IDS.forEach(compId => {
           const comp = next[compId];
           if (!comp || comp.type !== 'league') return;
           let upd = { ...comp };
           const runDiv = (teamsKey: string, mdKey: string, histKey: string, winKey: string, isDiv2?: boolean) => {
             let guard = 0;
-            while (divPendingAt(upd[teamsKey], upd[mdKey], globalMatchday) && guard++ < 60) {
+            const total = divTotalRounds(upd[teamsKey]);
+            while ((upd[mdKey] || 0) < targetMd && (upd[mdKey] || 0) < total && guard++ < 60) {
               const prevMd = upd[mdKey] || 0;
               const res = simulateDivisionMatchday(upd[teamsKey], upd[mdKey] || 0, upd[histKey] || [], compId, isDiv2);
               if (!res || res.nextMatchday === prevMd) break;
@@ -2578,9 +2584,13 @@ function DiceFootballApp() {
             c1 = { ...next['C1'], ...autoData, id: 'C1', name: 'Champions League', type: 'cup' };
           }
         }
-        const canSimulateCl = hasChampions && c1 && c1.teams && c1.teams.length > 0 && !c1.showWinner && c1.phase !== 'Terminado' && (expClMd === null || (c1.matchday || 0) < expClMd);
-        if (canSimulateCl) {
-          c1 = simulateSingleCupStage(c1, 'C1');
+        if (hasChampions && c1 && c1.teams && c1.teams.length > 0 && !c1.showWinner && c1.phase !== 'Terminado') {
+          let guard = 0;
+          while ((expClMd === null || (c1.matchday || 0) < expClMd) && !c1.showWinner && c1.phase !== 'Terminado' && guard++ < 20) {
+            const prevMd = c1.matchday;
+            c1 = simulateSingleCupStage(c1, 'C1');
+            if (c1.matchday === prevMd) break;
+          }
           next['C1'] = c1;
         }
 
@@ -2603,9 +2613,13 @@ function DiceFootballApp() {
         }
 
         const canSimulateUelPhase = !c3 || c3.phase === 'Dieciseisavos' || isClDone;
-        const canSimulateUel = hasEuropa && c3 && c3.teams && c3.teams.length > 0 && !c3.showWinner && c3.phase !== 'Terminado' && canSimulateUelPhase && (expUelMd === null || (c3.matchday || 0) < expUelMd);
-        if (canSimulateUel) {
-          c3 = simulateSingleCupStage(c3, 'C3', c1);
+        if (hasEuropa && c3 && c3.teams && c3.teams.length > 0 && !c3.showWinner && c3.phase !== 'Terminado' && canSimulateUelPhase) {
+          let guard = 0;
+          while ((expUelMd === null || (c3.matchday || 0) < expUelMd) && !c3.showWinner && c3.phase !== 'Terminado' && guard++ < 20) {
+            const prevMd = c3.matchday;
+            c3 = simulateSingleCupStage(c3, 'C3', c1);
+            if (c3.matchday === prevMd) break;
+          }
           next['C3'] = c3;
         }
       }
@@ -2745,13 +2759,14 @@ function DiceFootballApp() {
       return;
     }
 
-    // 4. Incrementar la semana de la temporada solo si no hubo partidos de liga en esta semana (los partidos de liga actualizan el reloj global automáticamente mediante el efecto de sincronización)
-    if (!hasLeague || allLeaguesFinished) {
-      setSeasonState(s => ({
-        ...s,
-        currentWeek: Math.min(43, (s.currentWeek || 1) + 1)
-      }));
-    }
+    // 4. Incrementar la semana de la temporada y la jornada global en bloque
+    const nextWk = Math.min(43, currentWk + 1);
+    const nextGlobalMd = getLeagueMatchdayForWeek(nextWk) || (expLeagueMd ? Math.min(38, expLeagueMd + 1) : globalMatchday);
+    setSeasonState(s => ({
+      ...s,
+      currentWeek: nextWk,
+      globalMatchday: nextGlobalMd
+    }));
   };
 
   const simulateUntilNextMatch = () => {
@@ -2844,17 +2859,29 @@ function DiceFootballApp() {
   const careerClInfo = useMemo(() => {
     if (!careerClTeam) return null;
     const champion = careerClWinnerId === careerClTeam.id;
+    const group = clComp?.groups?.find(g => g.teamIds?.includes(careerClTeam.id));
     const rival = (() => {
-      if (!clComp || clComp.phase === 'groups' || clComp.phase === 'Terminado') return null;
+      if (!clComp || clComp.phase === 'Terminado') return null;
+      if (clComp.phase === 'groups') {
+        if (!group) return null;
+        const groupTeams = (clComp.teams || []).filter((t: any) => group.teamIds?.includes(t.id));
+        const rounds = generateLeagueSchedule(groupTeams, true);
+        const matchday = clComp.matchday || 0;
+        const currentRound = rounds[matchday % 6] || [];
+        const match = currentRound.find((m: any) => m && (m.homeId === careerClTeam.id || m.awayId === careerClTeam.id));
+        if (!match) return null;
+        const rivalId = match.homeId === careerClTeam.id ? match.awayId : match.homeId;
+        return clComp.teams.find((t: any) => t.id === rivalId) || null;
+      }
       const matches = Array.isArray(clComp.bracket?.[clComp.phase])
         ? clComp.bracket[clComp.phase]
         : [clComp.bracket?.[clComp.phase]].filter(Boolean);
-      const m = matches.find(x => x.hId === careerClTeam.id || x.aId === careerClTeam.id);
+      const m = matches.find((x: any) => x && (x.hId === careerClTeam.id || x.aId === careerClTeam.id));
       if (!m) return null;
       const rivalId = m.hId === careerClTeam.id ? m.aId : m.hId;
-      return clComp.teams.find(t => t.id === rivalId) || null;
+      return clComp.teams.find((t: any) => t.id === rivalId) || null;
     })();
-    const group = clComp?.groups?.find(g => g.teamIds?.includes(careerClTeam.id));
+
     return {
       season: seasonState.season || 1,
       phase: clComp?.phase || 'groups',
@@ -2864,6 +2891,7 @@ function DiceFootballApp() {
       eliminated: !careerClAlive && !champion,
       groupName: group?.name || null,
       rivalName: rival?.name || null,
+      rivalTeam: rival || null,
       pts: careerClTeam.pts, p: careerClTeam.p, gf: careerClTeam.gf, ga: careerClTeam.ga,
       isGlobalPhase: seasonState.phase === 'champions'
     };
@@ -2911,7 +2939,8 @@ function DiceFootballApp() {
         phase: uelComp?.phase || 'Dieciseisavos',
         champion: false,
         eliminated: false,
-        rivalName: null
+        rivalName: null,
+        rivalTeam: null
       };
     }
     const champion = careerUelWinnerId === careerUelTeam.id;
@@ -2933,6 +2962,7 @@ function DiceFootballApp() {
       champion,
       eliminated: !careerUelAlive && !champion,
       rivalName: rival?.name || null,
+      rivalTeam: rival || null,
       notQualified: false
     };
   }, [uelComp, careerUelTeam, careerUelAlive, careerUelWinnerId, seasonState.season]);
@@ -3423,11 +3453,58 @@ function DiceFootballApp() {
     const careerMd = (career.div === 2 ? comps[career.compId]?.matchday2 : comps[career.compId]?.matchday) || 0;
     const userPendingLeagueThisWeek = hasLeagueThisWeek && !careerDivisionFinished && (careerMd < (expLeagueMd ?? (careerMd + 1)));
 
-    // Si ya no queda partido de liga pendiente para esta semana, avanzar la semana del calendario
+    // Si ya no queda partido de liga pendiente para esta semana, avanzar la semana del calendario y sincronizar el resto de ligas
     if (!userPendingLeagueThisWeek) {
+      if (hasLeagueThisWeek && expLeagueMd !== null) {
+        setComps(prev => {
+          const next = { ...prev };
+          let changed = false;
+          LEAGUE_IDS.forEach(compId => {
+            const comp = next[compId];
+            if (!comp || comp.type !== 'league') return;
+            let upd = { ...comp };
+            let touched = false;
+            const runDiv = (teamsKey: string, mdKey: string, histKey: string, winKey: string, isDiv2?: boolean) => {
+              let guard = 0;
+              const isUserDivision = career?.active && career.compId === compId && (isDiv2 ? career.div === 2 : career.div === 1);
+              if (isUserDivision && !careerDivisionFinished && ((upd[mdKey] || 0) < expLeagueMd)) return;
+              const total = divTotalRounds(upd[teamsKey]);
+              while ((upd[mdKey] || 0) < expLeagueMd && (upd[mdKey] || 0) < total && guard++ < 40) {
+                const prevMd = upd[mdKey] || 0;
+                const res = simulateDivisionMatchday(upd[teamsKey], upd[mdKey] || 0, upd[histKey] || [], compId, isDiv2);
+                if (!res || res.nextMatchday === prevMd) break;
+                touched = true;
+                upd = {
+                  ...upd,
+                  [teamsKey]: res.updatedTeams,
+                  [mdKey]: res.nextMatchday,
+                  [histKey]: res.newHistory,
+                  [winKey]: res.isFinished ? true : upd[winKey]
+                };
+                if (res.isFinished) break;
+              }
+            };
+            runDiv('teams', 'matchday', 'history', 'showWinner', false);
+            runDiv('teams2', 'matchday2', 'history2', 'showWinner2', true);
+            if (touched) {
+              if (leagueSeasonOver(upd)) {
+                upd.previousStandings = buildStandingsSnapshot(upd.teams) || upd.previousStandings || null;
+                upd.previousStandings2 = buildStandingsSnapshot(upd.teams2) || upd.previousStandings2 || null;
+              }
+              next[compId] = upd;
+              changed = true;
+            }
+          });
+          return changed ? next : prev;
+        });
+      }
+
+      const nextWk = Math.min(43, currentWk + 1);
+      const nextGlobalMd = getLeagueMatchdayForWeek(nextWk) || (expLeagueMd ? Math.min(38, expLeagueMd + 1) : globalMatchday);
       setSeasonState(s => ({
         ...s,
-        currentWeek: Math.min(43, (s.currentWeek || 1) + 1)
+        currentWeek: nextWk,
+        globalMatchday: nextGlobalMd
       }));
     }
 
@@ -3904,11 +3981,58 @@ function DiceFootballApp() {
     const careerMd = (career.div === 2 ? comps[career.compId]?.matchday2 : comps[career.compId]?.matchday) || 0;
     const userPendingLeagueThisWeek = hasLeagueThisWeek && !careerDivisionFinished && (careerMd < (expLeagueMd ?? (careerMd + 1)));
 
-    // Si ya no queda partido de liga pendiente para esta semana, avanzar la semana del calendario
+    // Si ya no queda partido de liga pendiente para esta semana, avanzar la semana del calendario y sincronizar el resto de ligas
     if (!userPendingLeagueThisWeek) {
+      if (hasLeagueThisWeek && expLeagueMd !== null) {
+        setComps(prev => {
+          const next = { ...prev };
+          let changed = false;
+          LEAGUE_IDS.forEach(compId => {
+            const comp = next[compId];
+            if (!comp || comp.type !== 'league') return;
+            let upd = { ...comp };
+            let touched = false;
+            const runDiv = (teamsKey: string, mdKey: string, histKey: string, winKey: string, isDiv2?: boolean) => {
+              let guard = 0;
+              const isUserDivision = career?.active && career.compId === compId && (isDiv2 ? career.div === 2 : career.div === 1);
+              if (isUserDivision && !careerDivisionFinished && ((upd[mdKey] || 0) < expLeagueMd)) return;
+              const total = divTotalRounds(upd[teamsKey]);
+              while ((upd[mdKey] || 0) < expLeagueMd && (upd[mdKey] || 0) < total && guard++ < 40) {
+                const prevMd = upd[mdKey] || 0;
+                const res = simulateDivisionMatchday(upd[teamsKey], upd[mdKey] || 0, upd[histKey] || [], compId, isDiv2);
+                if (!res || res.nextMatchday === prevMd) break;
+                touched = true;
+                upd = {
+                  ...upd,
+                  [teamsKey]: res.updatedTeams,
+                  [mdKey]: res.nextMatchday,
+                  [histKey]: res.newHistory,
+                  [winKey]: res.isFinished ? true : upd[winKey]
+                };
+                if (res.isFinished) break;
+              }
+            };
+            runDiv('teams', 'matchday', 'history', 'showWinner', false);
+            runDiv('teams2', 'matchday2', 'history2', 'showWinner2', true);
+            if (touched) {
+              if (leagueSeasonOver(upd)) {
+                upd.previousStandings = buildStandingsSnapshot(upd.teams) || upd.previousStandings || null;
+                upd.previousStandings2 = buildStandingsSnapshot(upd.teams2) || upd.previousStandings2 || null;
+              }
+              next[compId] = upd;
+              changed = true;
+            }
+          });
+          return changed ? next : prev;
+        });
+      }
+
+      const nextWk = Math.min(43, currentWk + 1);
+      const nextGlobalMd = getLeagueMatchdayForWeek(nextWk) || (expLeagueMd ? Math.min(38, expLeagueMd + 1) : globalMatchday);
       setSeasonState(s => ({
         ...s,
-        currentWeek: Math.min(43, (s.currentWeek || 1) + 1)
+        currentWeek: nextWk,
+        globalMatchday: nextGlobalMd
       }));
     }
 
@@ -4416,7 +4540,7 @@ function DiceFootballApp() {
     }
 
     setCareer(c => (c.active ? { ...c, clSeason: seasonNow } : c));
-    setSeasonState(s => ({ ...s, phase: 'champions', globalMatchday: 38 }));
+    setSeasonState(s => ({ ...s, phase: 'champions', currentWeek: Math.max(s.currentWeek || 1, 41), globalMatchday: 38 }));
   };
 
 
@@ -4947,6 +5071,15 @@ function DiceFootballApp() {
     if (!currentComp || currentComp.type === 'league') return;
     const isAutoSim = isAutoSimManual ?? (!ms && cupAutoSim);
 
+    // Verificación estricta de calendario para copas europeas (C1 y C3)
+    if (cId === 'C1' || cId === 'C3') {
+      const currentWk = seasonState.currentWeek || 1;
+      const status = getCompetitionWeekStatus(comps[cId] || currentComp, currentWk, false, comps);
+      if (!status.canPlayOrSimulate) {
+        return;
+      }
+    }
+
     // Control cronológico estricto: UEL Octavos no puede disputarse si Champions League aún está en fase de grupos
     if (cId === 'C3' && currentComp.phase !== 'Dieciseisavos' && currentComp.phase !== 'Terminado') {
       const c1 = comps['C1'];
@@ -5230,9 +5363,17 @@ function DiceFootballApp() {
     }
     // Avanzar la semana del calendario de la temporada únicamente si es juego standalone de clubes (no en Copa del Mundo independiente ni en modo carrera)
     if (!targetCompId && !career?.active && view !== 'careerMatch' && cId !== 'C2' && !currentComp?.isWorldCup) {
+      const currentWk = seasonState.currentWeek || 1;
+      const expLeagueMd = getLeagueMatchdayForWeek(currentWk);
+      if (expLeagueMd !== null) {
+        syncLeaguesToGlobal(LEAGUE_IDS, expLeagueMd);
+      }
+      const nextWk = Math.min(43, currentWk + 1);
+      const nextGlobalMd = getLeagueMatchdayForWeek(nextWk) || (expLeagueMd ? Math.min(38, expLeagueMd + 1) : globalMatchday);
       setSeasonState(s => ({
         ...s,
-        currentWeek: Math.min(43, (s.currentWeek || 1) + 1)
+        currentWeek: nextWk,
+        globalMatchday: nextGlobalMd
       }));
     }
   };
@@ -5309,9 +5450,66 @@ function DiceFootballApp() {
       }
 
       updateActiveComp(playedDivUpdate);
+
       // JORNADA GLOBAL SINCRONIZADA: el resultado manual queda registrado tal cual
-      // y las demás ligas resuelven automáticamente esta misma jornada global.
-      simulateOtherLeaguesToGlobal(activeCompId);
+      // y todas las demás ligas y copas de la semana resuelven en bloque.
+      const currentWk = seasonState.currentWeek || 1;
+      const expLeagueMd = getLeagueMatchdayForWeek(currentWk);
+      const targetLeagueMd = expLeagueMd ?? nextMatchday;
+      simulateOtherLeaguesToGlobal(activeCompId, targetLeagueMd);
+
+      const weekData = getSemanaCalendario(currentWk);
+      const hasChampions = weekData?.fixtures?.some(f => f.competicion === 'CHAMPIONS' && f.esPartido);
+      const hasEuropa = weekData?.fixtures?.some(f => f.competicion === 'EUROPA_LEAGUE' && f.esPartido);
+      const expClMd = getExpectedCupMatchdayForWeek('C1', currentWk);
+      const expUelMd = getExpectedCupMatchdayForWeek('C3', currentWk);
+
+      if (hasChampions || hasEuropa) {
+        setComps(prev => {
+          let next = { ...prev };
+          let c1 = next['C1'];
+          if (c1 && c1.teams && c1.teams.length > 0 && !c1.showWinner && c1.phase !== 'Terminado') {
+            if (hasChampions && (expClMd === null || (c1.matchday || 0) < expClMd)) {
+              let guard = 0;
+              while ((expClMd === null || (c1.matchday || 0) < expClMd) && !c1.showWinner && c1.phase !== 'Terminado' && guard++ < 20) {
+                const prevMd = c1.matchday;
+                c1 = simulateSingleCupStage(c1, 'C1');
+                if (c1.matchday === prevMd) break;
+              }
+              next['C1'] = c1;
+            }
+          }
+          let c3 = next['C3'];
+          const isClDone = !c1 || c1.phase !== 'groups' || (c1.matchday || 0) >= 6;
+          if (isClDone && c1 && Array.isArray(c1.groups)) {
+            if (c3) {
+              c3 = syncChampionsRepescadosToUEL(c1, c3);
+              next['C3'] = c3;
+            }
+          }
+          const canSimulateUelPhase = !c3 || c3.phase === 'Dieciseisavos' || isClDone;
+          if (c3 && c3.teams && c3.teams.length > 0 && !c3.showWinner && c3.phase !== 'Terminado' && canSimulateUelPhase) {
+            if (hasEuropa && (expUelMd === null || (c3.matchday || 0) < expUelMd)) {
+              let guard = 0;
+              while ((expUelMd === null || (c3.matchday || 0) < expUelMd) && !c3.showWinner && c3.phase !== 'Terminado' && guard++ < 20) {
+                const prevMd = c3.matchday;
+                c3 = simulateSingleCupStage(c3, 'C3', c1);
+                if (c3.matchday === prevMd) break;
+              }
+              next['C3'] = c3;
+            }
+          }
+          return next;
+        });
+      }
+
+      const nextWk = Math.min(43, currentWk + 1);
+      const nextGlobalMd = getLeagueMatchdayForWeek(nextWk) || Math.min(38, targetLeagueMd + 1);
+      setSeasonState(s => ({
+        ...s,
+        currentWeek: nextWk,
+        globalMatchday: nextGlobalMd
+      }));
 
     } else {
        processCupRound(matchState);
@@ -5564,7 +5762,8 @@ function DiceFootballApp() {
     const leagueTotal = isLeague ? divTotalRounds(currentTeams) : 0;
     const leagueDivDone = isLeague && leagueTotal > 0 && currentMatchday >= leagueTotal;
     const canPlayGlobalMatchday = isLeague ? (!leagueDivDone && currentMatchday < globalMatchday) : true;
-    const leaguePendingNow = isLeague && leaguePendingAt(activeComp, globalMatchday);
+    const compWeekStatus = getCompetitionWeekStatus(activeComp, currentWeek, isDiv2, comps);
+    const leaguePendingNow = isLeague && leaguePendingAt(activeComp, globalMatchday) && compWeekStatus.canPlayOrSimulate;
 
     if (compView === 'config') return (
       <ConfigPanel 
@@ -6739,8 +6938,6 @@ function DiceFootballApp() {
             </div>
 
             {(() => {
-              const compWeekStatus = getCompetitionWeekStatus(activeCompId, activeComp, currentWeek, comps);
-
               // 1. Si la competición no está en su semana oficial o está bloqueada por calendario, mostrar panel informativo
               if (!compWeekStatus.canPlayOrSimulate) {
                 return (
