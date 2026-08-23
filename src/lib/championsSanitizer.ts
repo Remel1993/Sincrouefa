@@ -378,27 +378,21 @@ export const sanitizeEuropaLeagueTeams = (uelComp: any, c1Comp?: any): any => {
     });
   }
 
-  // Si aún faltan repescados para completar los 8 (por haber eliminado duplicados), rellenar con clubes auténticos de PRESETS
-  if (cleanRepescados.length < 8) {
-    const fallbackCodes = ['ES', 'EN', 'IT', 'DE', 'FR', 'NL', 'MI', 'MB'];
-    let idx = 0;
-    while (cleanRepescados.length < 8 && idx < fallbackCodes.length * 4) {
-      const code = fallbackCodes[idx % fallbackCodes.length];
-      const presets = PRESETS[code] || [];
-      const cand = presets.find(p => p && !usedNames.has(p.name));
-      if (cand && !usedNames.has(cand.name)) {
-        usedNames.add(cand.name);
-        const groupLetter = String.fromCharCode(65 + cleanRepescados.length);
-        cleanRepescados.push({
-          ...cand,
-          id: 17 + cleanRepescados.length,
-          isRepesca: true,
-          league: code,
-          clOrigin: `Champions League (3.º Grupo ${groupLetter})`
-        });
-      }
-      idx++;
-    }
+  // Si aún faltan repescados para completar los 8 (por haber eliminado duplicados o no haber finalizado Champions), usar placeholders
+  while (cleanRepescados.length < 8) {
+    const groupLetter = String.fromCharCode(65 + cleanRepescados.length);
+    cleanRepescados.push({
+      id: 17 + cleanRepescados.length,
+      name: `3.º Grupo ${groupLetter} (UCL)`,
+      att: 3,
+      opp: 3,
+      def: 3,
+      color1: '#1e3a8a',
+      color2: '#3b82f6',
+      isRepesca: true,
+      isPlaceholder: true,
+      clOrigin: `Champions League (3.º Grupo ${groupLetter})`
+    });
   }
 
   const finalizedTeams = [...resolvedLeagueTeams, ...cleanRepescados.slice(0, 8)];
@@ -450,24 +444,21 @@ export const syncChampionsRepescadosToUEL = (c1Comp: any, uelComp: any): any => 
   const safeRealRepescados = realRepescados.filter((r: any) => !leagueTeamNames.has(r.name));
   const usedRepescaNames = new Set<string>(safeRealRepescados.map((r: any) => r.name));
 
-  const fallbackCodes = ['ES', 'EN', 'IT', 'DE', 'FR', 'NL', 'MI', 'MB'];
-  let fbIdx = 0;
-  while (safeRealRepescados.length < 8 && fbIdx < fallbackCodes.length * 4) {
-    const code = fallbackCodes[fbIdx % fallbackCodes.length];
-    const presets = PRESETS[code] || [];
-    const cand = presets.find(p => p && !leagueTeamNames.has(p.name) && !usedRepescaNames.has(p.name));
-    if (cand) {
-      usedRepescaNames.add(cand.name);
-      const groupLetter = String.fromCharCode(65 + safeRealRepescados.length);
-      safeRealRepescados.push({
-        ...cand,
-        id: 17 + safeRealRepescados.length,
-        isRepesca: true,
-        league: code,
-        clOrigin: `Champions League (3.º Grupo ${groupLetter})`
-      });
-    }
-    fbIdx++;
+  // Rellenar con placeholders limpios si aún no se han determinado
+  while (safeRealRepescados.length < 8) {
+    const groupLetter = String.fromCharCode(65 + safeRealRepescados.length);
+    safeRealRepescados.push({
+      id: 17 + safeRealRepescados.length,
+      name: `3.º Grupo ${groupLetter} (UCL)`,
+      att: 3,
+      opp: 3,
+      def: 3,
+      color1: '#1e3a8a',
+      color2: '#3b82f6',
+      isRepesca: true,
+      isPlaceholder: true,
+      clOrigin: `Champions League (3.º Grupo ${groupLetter})`
+    });
   }
 
   // Asegurar que tenemos exactamente 16 de liga y 8 repescados (total 24)

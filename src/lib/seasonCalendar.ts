@@ -1243,15 +1243,16 @@ export const getCompetitionWeekStatus = (
   isDiv2: boolean = false,
   allComps?: Record<string, any>
 ): CompetitionWeekStatus => {
-  const compId = comp?.id || '';
-  const isLeague = comp?.type === 'league';
-  const isWC = compId === 'C2' || Boolean(comp?.isWorldCup) || comp?.name?.toLowerCase().includes('mundial') || comp?.name?.toLowerCase().includes('world cup');
-  const isCL = compId === 'C1' || comp?.name?.toLowerCase().includes('champions');
-  const isUEL = compId === 'C3' || comp?.name?.toLowerCase().includes('europa');
+  const actualComp = (typeof comp === 'string' && allComps) ? (allComps[comp] || { id: comp }) : (comp || {});
+  const compId = typeof comp === 'string' ? comp : (actualComp?.id || '');
+  const isLeague = actualComp?.type === 'league' || compId?.startsWith('L');
+  const isWC = compId === 'C2' || Boolean(actualComp?.isWorldCup) || actualComp?.name?.toLowerCase().includes('mundial') || actualComp?.name?.toLowerCase().includes('world cup');
+  const isCL = compId === 'C1' || actualComp?.name?.toLowerCase().includes('champions');
+  const isUEL = compId === 'C3' || actualComp?.name?.toLowerCase().includes('europa');
 
   if (isLeague) {
-    const teams = isDiv2 ? (comp?.teams2 || []) : (comp?.teams || []);
-    const matchday = isDiv2 ? (comp?.matchday2 || 0) : (comp?.matchday || 0);
+    const teams = isDiv2 ? (actualComp?.teams2 || []) : (actualComp?.teams || []);
+    const matchday = isDiv2 ? (actualComp?.matchday2 || 0) : (actualComp?.matchday || 0);
     const totalMatchdays = teams.length > 0 ? (teams.length - 1) * 2 : 38;
     const isFinished = matchday >= totalMatchdays;
 
@@ -1339,7 +1340,7 @@ export const getCompetitionWeekStatus = (
   }
 
   if (isCL) {
-    const isFinished = comp?.phase === 'Terminado' || (comp?.bracket?.Final && comp?.bracket?.Final?.sh !== null && comp?.bracket?.Final?.sh !== undefined);
+    const isFinished = actualComp?.phase === 'Terminado' || (actualComp?.bracket?.Final && actualComp?.bracket?.Final?.sh !== null && actualComp?.bracket?.Final?.sh !== undefined);
     if (isFinished) {
       return {
         isScheduledThisWeek: false,
@@ -1356,7 +1357,7 @@ export const getCompetitionWeekStatus = (
       };
     }
 
-    const roundIndex = (comp?.matchday || 0) + 1;
+    const roundIndex = (actualComp?.matchday || 0) + 1;
     const targetWeek = CHAMPIONS_MATCH_WEEKS[roundIndex - 1] || 41;
     const roundName = getClRoundName(roundIndex);
 
@@ -1392,7 +1393,7 @@ export const getCompetitionWeekStatus = (
   }
 
   if (isUEL) {
-    const isFinished = comp?.phase === 'Terminado' || (comp?.bracket?.Final && comp?.bracket?.Final?.sh !== null && comp?.bracket?.Final?.sh !== undefined);
+    const isFinished = actualComp?.phase === 'Terminado' || (actualComp?.bracket?.Final && actualComp?.bracket?.Final?.sh !== null && actualComp?.bracket?.Final?.sh !== undefined);
     if (isFinished) {
       return {
         isScheduledThisWeek: false,
@@ -1411,7 +1412,7 @@ export const getCompetitionWeekStatus = (
 
     const c1 = allComps ? allComps['C1'] : null;
     const isC1Done = !c1 || c1.phase !== 'groups' || (c1.matchday || 0) >= 6;
-    if (comp?.phase !== 'Dieciseisavos' && !isC1Done) {
+    if (actualComp?.phase !== 'Dieciseisavos' && !isC1Done) {
       return {
         isScheduledThisWeek: false,
         canPlayOrSimulate: false,
@@ -1427,7 +1428,7 @@ export const getCompetitionWeekStatus = (
       };
     }
 
-    const roundIndex = (comp?.matchday || 0) + 1;
+    const roundIndex = (actualComp?.matchday || 0) + 1;
     const targetWeek = EUROPA_LEAGUE_MATCH_WEEKS[roundIndex - 1] || 39;
     const roundName = getUelRoundName(roundIndex);
 
@@ -1463,7 +1464,7 @@ export const getCompetitionWeekStatus = (
   }
 
   if (isWC) {
-    const isFinished = comp?.phase === 'Terminado' || (comp?.bracket?.Final && comp?.bracket?.Final?.sh !== null && comp?.bracket?.Final?.sh !== undefined) || comp?.showWinner;
+    const isFinished = actualComp?.phase === 'Terminado' || (actualComp?.bracket?.Final && actualComp?.bracket?.Final?.sh !== null && actualComp?.bracket?.Final?.sh !== undefined) || actualComp?.showWinner;
     if (isFinished) {
       return {
         isScheduledThisWeek: false,
@@ -1480,7 +1481,7 @@ export const getCompetitionWeekStatus = (
       };
     }
 
-    const roundName = comp?.phase === 'groups' ? `Jornada ${(comp?.matchday || 0) + 1}` : (comp?.phase || 'Fase Final');
+    const roundName = actualComp?.phase === 'groups' ? `Jornada ${(actualComp?.matchday || 0) + 1}` : (actualComp?.phase || 'Fase Final');
 
     return {
       isScheduledThisWeek: true,
