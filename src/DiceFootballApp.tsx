@@ -1580,10 +1580,29 @@ function DiceFootballApp() {
         }
       });
 
+      // 3. Completar copas continentales C1 y C3 para sincronizar la temporada en semana 40
+      let c1 = next['C1'];
+      if (!c1 || !c1.teams || c1.teams.length === 0) {
+        const autoData = getAutoFillData('C1', next);
+        if (autoData) c1 = { ...next['C1'], ...autoData, id: 'C1', name: 'Champions League', type: 'cup' };
+      }
+      if (c1 && c1.teams && c1.teams.length > 0) {
+        next['C1'] = simulateEntireCupToFinish(c1, 'C1');
+      }
+
+      let c3 = next['C3'];
+      if (!c3 || !c3.teams || c3.teams.length === 0) {
+        const autoData = getAutoFillData('C3', next);
+        if (autoData) c3 = { ...next['C3'], ...autoData, id: 'C3', name: 'UEFA Europa League', type: 'cup' };
+      }
+      if (c3 && c3.teams && c3.teams.length > 0) {
+        next['C3'] = simulateEntireCupToFinish(c3, 'C3', next['C1']);
+      }
+
       return next;
     });
 
-    // 3. Configurar el estado de carrera para Villarreal
+    // 4. Configurar el estado de carrera para Villarreal
     const vId = vTeam.id;
     setCareer({
       ...DEFAULT_CAREER,
@@ -1626,11 +1645,12 @@ function DiceFootballApp() {
       }
     });
 
-    // 4. Configurar seasonState en la última semana de la temporada (Semana 40: fin de liga)
+    // 5. Configurar seasonState en la última semana de la temporada (Semana 40: fin de liga)
     setSeasonState(s => ({
       ...s,
       season: s.season || 1,
       currentWeek: 40,
+      globalMatchday: 38,
       phase: 'league'
     }));
 
@@ -2499,10 +2519,10 @@ function DiceFootballApp() {
     const uelPhase = uelComp?.phase || 'Dieciseisavos';
     const isUelReady = uelPhase === 'Dieciseisavos' || isClGroupsFinished;
 
-    const userPendingCl = hasChampions && isCareerAliveInC1 && ((comps['C1']?.matchday || 0) < (expClMd ?? 99));
-    const userPendingUel = hasEuropa && isCareerAliveInC3 && isUelReady && ((comps['C3']?.matchday || 0) < (expUelMd ?? 99));
+    const userPendingCl = hasChampions && isCareerAliveInC1 && ((comps['C1']?.matchday || 0) < (expClMd ?? 99)) && currentWk < 42;
+    const userPendingUel = hasEuropa && isCareerAliveInC3 && isUelReady && ((comps['C3']?.matchday || 0) < (expUelMd ?? 99)) && currentWk < 42;
     const careerMd = (career.div === 2 ? comps[career.compId]?.matchday2 : comps[career.compId]?.matchday) || 0;
-    const userPendingLeague = (hasLeague || !weekData) && career?.active && careerTeam && careerFixture && !careerDivisionFinished && (careerMd < (expLeagueMd ?? (careerMd + 1)));
+    const userPendingLeague = (hasLeague || !weekData) && career?.active && careerTeam && careerFixture && !careerDivisionFinished && (careerMd < (expLeagueMd ?? (careerMd + 1))) && currentWk < 40;
 
     // Si el mánager tiene un partido europeo pendiente en esta semana, simular ese partido europeo primero
     if (userPendingCl) {
@@ -2744,7 +2764,7 @@ function DiceFootballApp() {
       return next;
     });
 
-    if (currentWk >= 42) {
+    if (currentWk >= 42 || (currentWk >= 40 && allLeaguesFinished && (championsFinished || comps['C1']?.phase === 'Terminado' || comps['C1']?.showWinner))) {
       if (clWinnerToArchive && finishedClComp) {
         archiveCompetition('C1', 1, clWinnerToArchive, finishedClComp, true);
       }
@@ -3509,7 +3529,9 @@ function DiceFootballApp() {
     }
 
     setMatchState(null);
-    setView('career');
+    if (view === 'careerMatch') {
+      setView('career');
+    }
   };
 
   // Ejecución del partido de Champions simulado
