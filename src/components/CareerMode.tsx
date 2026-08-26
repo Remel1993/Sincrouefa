@@ -549,13 +549,13 @@ export const CareerView = ({
 
   const isClAlive = isClQualified && !clInfo?.notQualified && !!clInfo?.alive && !clInfo?.eliminated && !clComp?.showWinner && clComp?.phase !== 'Terminado' && !clInfo?.champion;
   const expClMd = getExpectedCupMatchdayForWeek('C1', careerCurrentWeek) ?? 99;
-  const isClPending = hasChampionsThisWeek && isClAlive && ((clComp?.matchday || 0) < expClMd);
+  const isClPending = careerCurrentWeek < 40 && hasChampionsThisWeek && isClAlive && ((clComp?.matchday || 0) < expClMd);
 
-  const isUelPending = hasEuropaThisWeek && isUelAlive && isRoundChronologicallyEligible && isUelPendingThisWeek;
+  const isUelPending = careerCurrentWeek < 40 && hasEuropaThisWeek && isUelAlive && isRoundChronologicallyEligible && isUelPendingThisWeek;
 
   const expLeagueMd = getLeagueMatchdayForWeek(careerCurrentWeek);
   const careerLeagueMd = (career.div === 2 ? comp?.matchday2 : comp?.matchday) || 0;
-  const isLeaguePending = hasLeagueThisWeek && !divisionFinished && Boolean(nextFixture) && !currentWeekInfo.isOfficeWeek && (careerLeagueMd < (expLeagueMd ?? (careerLeagueMd + 1)));
+  const isLeaguePending = careerCurrentWeek < 40 && hasLeagueThisWeek && !divisionFinished && Boolean(nextFixture) && !currentWeekInfo.isOfficeWeek && (careerLeagueMd < (expLeagueMd ?? (careerLeagueMd + 1)));
 
   const totalPendingMatchesThisWeek = (isClPending ? 1 : 0) + (isUelPending ? 1 : 0) + (isLeaguePending ? 1 : 0);
 
@@ -1487,8 +1487,8 @@ export const CareerView = ({
                   )}
 
                   <div className='space-y-2 pt-1'>
-                    {/* Botón de Sorteo de Champions League en Semana de Sorteo (Semana 2 o 20) sólo si el club entró en Champions */}
-                    {isClDrawWeek && isClQualified && !championsFinished && (
+                    {/* Botón de Sorteo de Champions League en Semana de Sorteo sólo durante la temporada regular */}
+                    {isClDrawWeek && isClQualified && !championsFinished && careerCurrentWeek < 40 && (
                       <button
                         onClick={() => {
                           if (careerCurrentWeek === 20 && onPerformKnockoutDraw) {
@@ -1507,80 +1507,60 @@ export const CareerView = ({
                       </button>
                     )}
 
-                    {/* Botón directo de Champions League sólo cuando el equipo está clasificado */}
-                    {isClQualified && !championsFinished && !isClDrawWeek && (
+                    {/* Botón de Champions League cuando el equipo sigue vivo en eliminatorias activas (sólo antes del final de temporada) */}
+                    {isClQualified && !championsFinished && careerCurrentWeek < 40 && clInfo?.alive && (
                       <div className='space-y-1.5'>
-                        <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
-                          <button
-                            onClick={() => {
-                              if (isChampionsDate) {
+                        {isChampionsDate ? (
+                          <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
+                            <button
+                              onClick={() => {
                                 if (onPlayChampionsMatch) {
                                   onPlayChampionsMatch();
                                 } else {
                                   if (onOpenChampions) onOpenChampions();
                                   setTab('cl');
                                 }
-                              }
-                            }}
-                            disabled={!isChampionsDate}
-                            className={`w-full py-3.5 rounded-2xl text-[10px] font-black uppercase italic tracking-widest transition-all flex items-center justify-center gap-2 border ${
-                              isChampionsDate
-                                ? 'bg-blue-600 hover:bg-blue-500 text-white border-blue-400/40 active:scale-95 shadow-md cursor-pointer'
-                                : 'bg-slate-900/40 text-slate-500 border-slate-800 cursor-not-allowed opacity-60'
-                            }`}
-                          >
-                            {!isChampionsDate ? <Lock size={15} className='text-amber-400' /> : <Swords size={16} className='text-amber-300' />}
-                            <span>{isChampionsDate ? 'Jugar UCL (Dados)' : `Bloqueado (Semana ${nextClWeek || 7})`}</span>
-                          </button>
-                          {onSimulateChampionsMatch && (
-                            <button
-                              onClick={isChampionsDate ? onSimulateChampionsMatch : undefined}
-                              disabled={!isChampionsDate}
-                              className={`w-full py-3.5 rounded-2xl text-[10px] font-black uppercase italic tracking-widest transition-all flex items-center justify-center gap-2 border ${
-                                isChampionsDate
-                                  ? 'bg-blue-700 hover:bg-blue-600 text-white border-blue-400/30 active:scale-95 shadow-md cursor-pointer'
-                                  : 'bg-slate-900/30 text-slate-500 border-slate-800 cursor-not-allowed opacity-60'
-                              }`}
+                              }}
+                              className='w-full py-3.5 rounded-2xl text-[10px] font-black uppercase italic tracking-widest transition-all flex items-center justify-center gap-2 border bg-blue-600 hover:bg-blue-500 text-white border-blue-400/40 active:scale-95 shadow-md cursor-pointer'
                             >
-                              {!isChampionsDate ? <Lock size={15} className='text-amber-400' /> : <Dices size={16} className='text-blue-200' />}
-                              <span>{isChampionsDate ? 'Simular UCL (Jornada)' : `Bloqueado (${nextClWeek || 7})`}</span>
+                              <Swords size={16} className='text-amber-300' />
+                              <span>Jugar UCL (Dados)</span>
                             </button>
-                          )}
-                        </div>
-                        {isChampionsDate && (
-                          <button
-                            onClick={() => setTab('cl')}
-                            className='w-full py-2 rounded-xl text-[8.5px] font-black uppercase tracking-wider bg-blue-950/40 hover:bg-blue-900/50 text-blue-300 border border-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer'
-                          >
-                            <Trophy size={12} className='text-amber-400' /> Ver Hub de Champions League
-                          </button>
-                        )}
+                            {onSimulateChampionsMatch && (
+                              <button
+                                onClick={onSimulateChampionsMatch}
+                                className='w-full py-3.5 rounded-2xl text-[10px] font-black uppercase italic tracking-widest transition-all flex items-center justify-center gap-2 border bg-blue-700 hover:bg-blue-600 text-white border-blue-400/30 active:scale-95 shadow-md cursor-pointer'
+                              >
+                                <Dices size={16} className='text-blue-200' />
+                                <span>Simular UCL (Jornada)</span>
+                              </button>
+                            )}
+                          </div>
+                        ) : null}
+                        <button
+                          onClick={() => setTab('cl')}
+                          className='w-full py-2.5 rounded-xl text-[8.5px] font-black uppercase tracking-wider bg-blue-950/40 hover:bg-blue-900/50 text-blue-300 border border-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer'
+                        >
+                          <Trophy size={12} className='text-amber-400' /> Ver Hub de Champions League
+                        </button>
                       </div>
                     )}
 
-                    {/* Ver Champions ya finalizada si está clasificado */}
-                    {isClQualified && championsFinished && (
+                    {/* Ver Champions ya finalizada o club clasificado al término de temporada */}
+                    {isClQualified && (championsFinished || careerCurrentWeek >= 40 || !clInfo?.alive) && (
                       <button
                         onClick={() => setTab('cl')}
-                        className='w-full bg-slate-800 hover:bg-slate-700 text-white py-3.5 rounded-2xl text-[10px] font-black uppercase italic tracking-widest active:scale-95 transition-all shadow-md flex items-center justify-center gap-2 border border-blue-400/20'
+                        className='w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-2xl text-[9.5px] font-black uppercase italic tracking-widest active:scale-95 transition-all shadow-md flex items-center justify-center gap-2 border border-blue-400/20'
                       >
-                        <Trophy size={16} className='text-blue-300' />
-                        <span>Ver Hub de Champions League (Finalizada)</span>
+                        <Trophy size={15} className='text-blue-300' />
+                        <span>Ver Hub de Champions League {championsFinished ? '(Finalizada)' : ''}</span>
                       </button>
                     )}
 
-                    {/* Botones de UEFA Europa League sólo si el club entró en Europa League */}
+                    {/* Ver Europa League si está clasificado */}
                     {isUelQualified && (
                       <div className='pt-1'>
-                        {uelFinished ? (
-                          <button
-                            onClick={() => setTab('uel')}
-                            className='w-full bg-slate-800 hover:bg-slate-700 text-white py-3.5 rounded-2xl text-[10px] font-black uppercase italic tracking-widest active:scale-95 transition-all shadow-md flex items-center justify-center gap-2 border border-amber-500/20'
-                          >
-                            <Flame size={16} className='text-amber-400' />
-                            <span>Ver Hub de Europa League (Finalizada)</span>
-                          </button>
-                        ) : isEuropaDate ? (
+                        {!uelFinished && isEuropaDate && careerCurrentWeek < 40 && uelInfo?.alive ? (
                           <div className='space-y-1.5'>
                             <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
                               <button
@@ -1617,22 +1597,17 @@ export const CareerView = ({
                         ) : (
                           <button
                             onClick={() => setTab('uel')}
-                            className='w-full py-3 px-3.5 rounded-2xl bg-amber-950/40 hover:bg-amber-900/50 text-amber-200 border border-amber-500/30 text-[10px] font-black uppercase italic tracking-wider transition-all flex items-center justify-between'
+                            className='w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-2xl text-[9.5px] font-black uppercase italic tracking-widest active:scale-95 transition-all shadow-md flex items-center justify-center gap-2 border border-amber-500/20'
                           >
-                            <div className='flex items-center gap-2'>
-                              <Flame size={15} className='text-amber-400' />
-                              <span>UEFA Europa League</span>
-                            </div>
-                            <span className='text-[8.5px] font-bold text-amber-300/90 uppercase bg-amber-500/20 px-2 py-0.5 rounded-md'>
-                              {!uelInfo?.alive ? 'Eliminado · Ver Hub' : `Próx. Sem. ${nextUelWeek || 20} · Ver Cuadro`}
-                            </span>
+                            <Flame size={15} className='text-amber-400' />
+                            <span>Ver Hub de Europa League {uelFinished ? '(Finalizada)' : ''}</span>
                           </button>
                         )}
                       </div>
                     )}
 
                     {/* Botón para iniciar nueva temporada global cuando Champions League ha finalizado */}
-                    {championsFinished && onNewSeason && (
+                    {(championsFinished || careerCurrentWeek >= 40) && onNewSeason && (
                       <button
                         onClick={onNewSeason}
                         className='w-full bg-amber-500 hover:bg-amber-400 text-slate-950 py-3.5 rounded-2xl text-[10px] font-black uppercase italic tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 border border-amber-300/60'
@@ -2042,14 +2017,14 @@ export const CareerView = ({
                       </button>
                     )}
                     <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
-                      {onOpenChampions && isClQualified && !championsFinished ? (
+                      {onOpenChampions && isClQualified && !championsFinished && careerCurrentWeek < 40 ? (
                         <button
                           onClick={onOpenChampions}
                           className='bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-2xl text-[10px] font-black uppercase italic tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer'
                         >
                           <Trophy size={14} /> Jugar Champions
                         </button>
-                      ) : onOpenUel && isUelQualified && !uelFinished ? (
+                      ) : onOpenUel && isUelQualified && !uelFinished && careerCurrentWeek < 40 ? (
                         <button
                           onClick={onOpenUel}
                           className='bg-amber-600 hover:bg-amber-500 text-white py-3 rounded-2xl text-[10px] font-black uppercase italic tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer'
