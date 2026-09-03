@@ -731,17 +731,57 @@ function DiceFootballApp() {
       if (!c.active) return c;
       let updatedDiv = c.div;
       let wonPromotion = false;
+      let wonLeague = false;
       const leagueComp = finishedLeaguesState[c.compId];
+      let finalPos = 10;
+      let standingsSize = 20;
+
       if (leagueComp && leagueComp.type === 'league') {
         const sorted1 = [...(leagueComp.teams || [])].sort((a, b) => b.pts - a.pts || (b.gf - b.ga) - (a.gf - a.ga));
         const sorted2 = [...(leagueComp.teams2 || [])].sort((a, b) => b.pts - a.pts || (b.gf - b.ga) - (a.gf - a.ga));
+        const relevantStandings = c.div === 2 ? sorted2 : sorted1;
+        standingsSize = relevantStandings.length || 20;
+        const foundIdx = relevantStandings.findIndex(t => t.id === c.teamId || t.name === (careerTeam?.name || ''));
+        finalPos = foundIdx >= 0 ? foundIdx + 1 : standingsSize;
+
         if (c.div === 2 && sorted2.slice(0, 3).some(t => t.id === c.teamId || t.name === (careerTeam?.name || ''))) {
           updatedDiv = 1;
           wonPromotion = true;
         } else if (c.div === 1 && sorted1.slice(-3).some(t => t.id === c.teamId || t.name === (careerTeam?.name || ''))) {
           updatedDiv = 2;
         }
+        if (c.div === 1 && finalPos === 1) {
+          wonLeague = true;
+        }
       }
+
+      const needsArchive = c.lastProcessedSeason !== seasonNow;
+      const wonCl = Boolean(c.clChampion);
+      const wonUel = Boolean(c.uelChampion);
+
+      const updatedHistory = needsArchive ? [
+        {
+          season: seasonNow,
+          teamName: careerTeam?.name || 'Club',
+          compName: leagueComp?.name || 'Liga',
+          div: c.div,
+          pts: careerTeam?.pts || 0,
+          position: finalPos,
+          performance: finalPos <= 3 ? 'Sobresaliente' : finalPos <= 8 ? 'Bueno' : 'Discreto',
+          repAfter: c.reputation,
+          note: wonLeague ? '🏆 Campeón de Liga' : wonPromotion ? '⬆️ Ascenso a Primera División' : 'Temporada completada',
+          objectivesMet: finalPos <= 6 ? 4 : 3,
+          objectivesTotal: 4,
+          clResult: wonCl ? '🏆 Campeón de UEFA Champions League' : wonUel ? '🏆 Campeón de UEFA Europa League' : null,
+          promoted: wonPromotion,
+          fired: false,
+          isLeagueChampion: wonLeague,
+          isClChampion: wonCl,
+          isUelChampion: wonUel
+        },
+        ...(c.seasonHistory || [])
+      ] : (c.seasonHistory || []);
+
       return {
         ...c,
         div: updatedDiv,
@@ -749,12 +789,22 @@ function DiceFootballApp() {
         clQualifiedFor: careerQualifiedCLName ? seasonNow + 1 : null,
         uelQualified: Boolean(careerQualifiedUELName),
         uelQualifiedFor: careerQualifiedUELName ? seasonNow + 1 : null,
+        clChampion: false,
+        uelChampion: false,
+        seasonStartReputation: c.reputation,
+        lastProcessedSeason: seasonNow,
         trophies: {
           ...c.trophies,
+          leagues: (c.trophies?.leagues || 0) + (needsArchive && wonLeague ? 1 : 0),
           promotions: (c.trophies?.promotions || 0) + (wonPromotion ? 1 : 0)
         },
+        seasonHistory: updatedHistory,
         completedOfficeWeeks: [],
         trainedMatchday: -1,
+        trainedMatchKey: null,
+        trainedClMatchKey: null,
+        trainedUelMatchKey: null,
+        trainedWeek: null,
         medicalImmunityWeeks: 0,
         activeInjury: null,
         lastSimulationFeedback: null,
@@ -1373,7 +1423,7 @@ function DiceFootballApp() {
       def: Math.max(career.baseDist?.def || 1, careerTeam.def || 1)
     };
 
-    const hasValidInjury = career.activeInjury && career.activeInjury.matchday === careerMd;
+    const hasValidInjury = career.activeInjury && (career.activeInjury.matchKey ? career.activeInjury.matchKey === currentMatchKey : career.activeInjury.matchday === careerMd);
 
     // Si las stats en comps difieren de base (mejoras de PE), sincronizar comps
     if (careerTeam.att !== base.att || careerTeam.opp !== base.opp || careerTeam.def !== base.def) {
@@ -1394,7 +1444,7 @@ function DiceFootballApp() {
 
     if (!career.baseDist || (career.activeInjury && !hasValidInjury) || career.baseDist.att !== base.att || career.baseDist.opp !== base.opp || career.baseDist.def !== base.def) {
       setCareer(c => {
-        const validInjury = c.activeInjury && c.activeInjury.matchday === careerMd;
+        const validInjury = c.activeInjury && (c.activeInjury.matchKey ? c.activeInjury.matchKey === currentMatchKey : c.activeInjury.matchday === careerMd);
         return {
           ...c,
           baseDist: base,
@@ -1682,6 +1732,8 @@ function DiceFootballApp() {
       pe: 0,
       // La reputación es tuya: si ya tenías carrera, no se pierde al recomenzar
       reputation: c.seasonHistory?.length ? clampRep(c.reputation) : 10,
+      seasonStartReputation: c.seasonHistory?.length ? clampRep(c.reputation) : 10,
+      trophies: c.trophies || { leagues: 0, champions: 0, uel: 0, promotions: 0 },
       startedSeason: seasonState.season || 1,
       contractStart: seasonState.season || 1,
       contractSeasons: CONTRACT_SEASONS,
@@ -1782,6 +1834,18 @@ function DiceFootballApp() {
     if (!careerTeam) return;
     const currentWk = seasonState.currentWeek || 1;
 
+    const isClMatch = currentMatchKey.startsWith('cl-');
+    const isUelMatch = currentMatchKey.startsWith('uel-');
+    const isLeagueMatch = !isClMatch && !isUelMatch;
+
+    const getTrainingKeys = (c: any) => ({
+      trainedMatchday: isLeagueMatch ? careerMd : c.trainedMatchday,
+      trainedMatchKey: currentMatchKey,
+      trainedClMatchKey: isClMatch ? currentMatchKey : c.trainedClMatchKey,
+      trainedUelMatchKey: isUelMatch ? currentMatchKey : c.trainedUelMatchKey,
+      trainedWeek: currentWk
+    });
+
     const drillFeedback = {
       simulated: false,
       die: result.die,
@@ -1801,11 +1865,7 @@ function DiceFootballApp() {
         return {
           ...c,
           pe: Math.max(0, (c.pe || 0) - (result.peCost || 0)),
-          trainedMatchday: careerMd,
-          trainedMatchKey: currentMatchKey,
-          trainedClMatchKey: currentMatchKey,
-          trainedUelMatchKey: currentMatchKey,
-          trainedWeek: currentWk,
+          ...getTrainingKeys(c),
           activeInjury: null,
           medicalImmunityWeeks: 3,
           immunityActivatedMatchday: careerMd,
@@ -1826,11 +1886,7 @@ function DiceFootballApp() {
         const base = c.baseDist || { att: careerTeam.att, opp: careerTeam.opp, def: careerTeam.def };
         return {
           ...c,
-          trainedMatchday: careerMd,
-          trainedMatchKey: currentMatchKey,
-          trainedClMatchKey: currentMatchKey,
-          trainedUelMatchKey: currentMatchKey,
-          trainedWeek: currentWk,
+          ...getTrainingKeys(c),
           activeInjury: {
             attr,
             label: attrLabel,
@@ -1853,11 +1909,7 @@ function DiceFootballApp() {
       setCareer(c => ({
         ...c,
         pe: (c.pe || 0) + result.peGained,
-        trainedMatchday: careerMd,
-        trainedMatchKey: currentMatchKey,
-        trainedClMatchKey: currentMatchKey,
-        trainedUelMatchKey: currentMatchKey,
-        trainedWeek: currentWk,
+        ...getTrainingKeys(c),
         lastTrainingResult: drillFeedback
       }));
       return;
@@ -1866,11 +1918,7 @@ function DiceFootballApp() {
     // Caso 4: Otros casos (ej: inmunidad médica activa previa que evitó la lesión, o resultado neutro)
     setCareer(c => ({
       ...c,
-      trainedMatchday: careerMd,
-      trainedMatchKey: currentMatchKey,
-      trainedClMatchKey: currentMatchKey,
-      trainedUelMatchKey: currentMatchKey,
-      trainedWeek: currentWk,
+      ...getTrainingKeys(c),
       lastTrainingResult: drillFeedback
     }));
   };
@@ -2869,7 +2917,7 @@ function DiceFootballApp() {
   const careerClAlive = useMemo(() => {
     if (!careerClTeam || !clComp) return false;
     if (clComp.phase === 'groups') return true;
-    if (clComp.phase === 'Terminado') return careerClWinnerId === careerClTeam.id;
+    if (clComp.phase === 'Terminado' || clComp.showWinner) return careerClWinnerId === careerClTeam.id;
     const matches = Array.isArray(clComp.bracket?.[clComp.phase])
       ? clComp.bracket[clComp.phase]
       : [clComp.bracket?.[clComp.phase]].filter(Boolean);
@@ -2944,6 +2992,10 @@ function DiceFootballApp() {
     if (!careerUelTeam || !uelComp) return false;
     if (uelComp.phase === 'Terminado' || uelComp.showWinner) return careerUelWinnerId === careerUelTeam.id;
     const phase = uelComp.phase || 'Dieciseisavos';
+    // Si el equipo es repescado de Champions y la fase actual es Dieciseisavos, aún no juega (entra en Octavos), por lo que sigue con vida
+    if (phase === 'Dieciseisavos' && (careerUelTeam.isRepesca || careerUelTeam.id >= 17)) {
+      return true;
+    }
     const matches = Array.isArray(uelComp.bracket?.[phase])
       ? uelComp.bracket[phase]
       : [uelComp.bracket?.[phase]].filter(Boolean);
@@ -3375,9 +3427,11 @@ function DiceFootballApp() {
         def: Math.max(c.baseDist?.def || 1, careerTeam.def || 1)
       };
       const newRep = Math.max(0, Math.min(100, Math.round(((c.reputation || 10) + repGained) * 10) / 10));
+      const prevMatches = (c.stats?.matches ?? c.stats?.played ?? 0);
       const newStats = {
         ...c.stats,
-        played: (c.stats?.played || 0) + 1,
+        matches: prevMatches + 1,
+        played: prevMatches + 1,
         wins: (c.stats?.wins || 0) + (result === 'W' ? 1 : 0),
         draws: (c.stats?.draws || 0) + (result === 'D' ? 1 : 0),
         losses: (c.stats?.losses || 0) + (result === 'L' ? 1 : 0),
@@ -3400,6 +3454,10 @@ function DiceFootballApp() {
         medicalImmunityWeeks: resolvedImmunity,
         trainedMatchKey: currentMatchKey,
         clChampion: isChampionsWinner ? true : c.clChampion,
+        trophies: {
+          ...c.trophies,
+          champions: (c.trophies?.champions || 0) + (isChampionsWinner ? 1 : 0)
+        },
         baseDist: cleanBase,
         tactic: cleanBase,
         stats: newStats,
@@ -3911,9 +3969,11 @@ function DiceFootballApp() {
         def: Math.max(c.baseDist?.def || 1, careerTeam.def || 1)
       };
       const newRep = Math.max(0, Math.min(100, Math.round(((c.reputation || 10) + repGained) * 10) / 10));
+      const prevMatches = (c.stats?.matches ?? c.stats?.played ?? 0);
       const newStats = {
         ...c.stats,
-        played: (c.stats?.played || 0) + 1,
+        matches: prevMatches + 1,
+        played: prevMatches + 1,
         wins: (c.stats?.wins || 0) + (result === 'W' ? 1 : 0),
         draws: (c.stats?.draws || 0) + (result === 'D' ? 1 : 0),
         losses: (c.stats?.losses || 0) + (result === 'L' ? 1 : 0),
@@ -3936,6 +3996,10 @@ function DiceFootballApp() {
         medicalImmunityWeeks: resolvedImmunity,
         trainedMatchKey: currentMatchKey,
         uelChampion: isUelWinner ? true : c.uelChampion,
+        trophies: {
+          ...c.trophies,
+          uel: (c.trophies?.uel || 0) + (isUelWinner ? 1 : 0)
+        },
         baseDist: cleanBase,
         tactic: cleanBase,
         stats: newStats,
@@ -4561,7 +4625,22 @@ function DiceFootballApp() {
       archiveCompetition('C1', 1, clWinnerToArchive, finishedClComp, true);
     }
 
-    setCareer(c => (c.active ? { ...c, clSeason: seasonNow } : c));
+    const isCareerClWinner = Boolean(
+      clWinnerToArchive && (
+        (finishedClComp?.careerTeamId && clWinnerToArchive.id === finishedClComp.careerTeamId) ||
+        (careerTeam?.name && clWinnerToArchive.name === careerTeam.name)
+      )
+    );
+
+    setCareer(c => (c.active ? {
+      ...c,
+      clSeason: seasonNow,
+      clChampion: isCareerClWinner ? true : c.clChampion,
+      trophies: {
+        ...c.trophies,
+        champions: (c.trophies?.champions || 0) + (isCareerClWinner ? 1 : 0)
+      }
+    } : c));
     setSeasonState(s => ({ ...s, phase: 'champions', currentWeek: Math.max(s.currentWeek || 1, 41), globalMatchday: 38 }));
   };
 
@@ -4803,14 +4882,19 @@ function DiceFootballApp() {
       pendingAppResolutionModal: null,
       transferredInSeason: season,
       reputation: clampRep(c.reputation + bonus),
+      seasonStartReputation: clampRep(c.reputation + bonus),
       signingBonus: bonus,
       clQualifiedFor: null, badStreak: 0,
-      contractStart: season + 1,
+      contractStart: careerDivisionFinished ? season + 1 : season,
       contractSeasons: CONTRACT_SEASONS,
       signedForSeason: season,
       lastProcessedSeason: c.lastProcessedSeason,
       medicalImmunityWeeks: 0,
       trainedMatchday: -1,
+      trainedMatchKey: null,
+      trainedClMatchKey: null,
+      trainedUelMatchKey: null,
+      trainedWeek: null,
       completedOfficeWeeks: [],
       activeInjury: null,
       lastSimulationFeedback: null,
@@ -4842,6 +4926,10 @@ function DiceFootballApp() {
       activeApplication: null,
       completedOfficeWeeks: [],
       trainedMatchday: -1,
+      trainedMatchKey: null,
+      trainedClMatchKey: null,
+      trainedUelMatchKey: null,
+      trainedWeek: null,
       medicalImmunityWeeks: 0,
       activeInjury: null,
       lastSimulationFeedback: null,
@@ -5035,7 +5123,7 @@ function DiceFootballApp() {
   };
 
   // Si la temporada del club acabó, el balance se ofrece una sola vez por temporada.
-  // Si el club está clasificado para la Champions global, el balance espera a que
+  // Si el club está clasificado para Champions o Europa League, el balance espera a que
   // su recorrido europeo esté resuelto para que cuente en la valoración.
   useEffect(() => {
     if (!career.active || !careerTeam) return;
@@ -5043,11 +5131,13 @@ function DiceFootballApp() {
     if (career.lastProcessedSeason === (seasonState.season || 1)) return;
     if (career.signedForSeason === (seasonState.season || 1)) return;
     if (view !== 'career') return;
-    const playsCl = career.clQualifiedFor === (seasonState.season || 1) || !!careerClInfo;
+    const playsCl = career.clQualifiedFor === (seasonState.season || 1) || (careerClInfo && !careerClInfo.notQualified);
     if (playsCl && !(careerClInfo?.champion || careerClInfo?.eliminated)) return;
+    const playsUel = career.uelQualifiedFor === (seasonState.season || 1) || (careerUelInfo && !careerUelInfo.notQualified);
+    if (playsUel && !(careerUelInfo?.champion || careerUelInfo?.eliminated)) return;
     openCareerReview();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [career.active, careerDivisionFinished, seasonState.season, view, careerClInfo]);
+  }, [career.active, careerDivisionFinished, seasonState.season, view, careerClInfo, careerUelInfo]);
 
 
   // El club puede ascender o descender de división: la carrera sigue al equipo
@@ -7959,6 +8049,22 @@ function DiceFootballApp() {
                             uelWinner = finishedC3.teams?.find((t: any) => t.id === winId);
                           }
                           archiveCompetition('C3', 1, uelWinner, finishedC3);
+                          if (uelWinner && career.active) {
+                            const isCareerUelWinner = Boolean(
+                              (finishedC3?.careerTeamId && uelWinner.id === finishedC3.careerTeamId) ||
+                              (careerTeam?.name && uelWinner.name === careerTeam.name)
+                            );
+                            if (isCareerUelWinner) {
+                              setCareer(c => ({
+                                ...c,
+                                uelChampion: true,
+                                trophies: {
+                                  ...c.trophies,
+                                  uel: (c.trophies?.uel || 0) + 1
+                                }
+                              }));
+                            }
+                          }
                         }
                         next['C3'] = finishedC3;
                       }
