@@ -570,20 +570,21 @@ export const CareerView = ({
     const w = l.filter((x: any) => x.result === 'W').length;
     const d = l.filter((x: any) => x.result === 'D').length;
     const loss = l.filter((x: any) => x.result === 'L').length;
-    const totalPlayed = l.length;
-    const pending = Math.max(0, totalRoundsCount - totalPlayed);
     const clMatches = l.filter((x: any) => x.isChampions).length;
-    const leagueMatches = l.filter((x: any) => !x.isChampions).length;
-    return { wins: w, draws: d, losses: loss, pending, clMatches, leagueMatches };
+    const uelMatches = l.filter((x: any) => x.isEuropaLeague).length;
+    const leagueMatches = l.filter((x: any) => !x.isChampions && !x.isEuropaLeague).length;
+    const pending = Math.max(0, totalRoundsCount - leagueMatches);
+    return { wins: w, draws: d, losses: loss, pending, clMatches, uelMatches, leagueMatches };
   }, [career.seasonLog, totalRoundsCount]);
 
-  // Último partido disputado por el mánager (de Liga o de Champions)
+  // Último partido disputado por el mánager (de Liga, de Champions o de Europa League)
   const lastPlayedMatchOverall = useMemo(() => {
     const log = career.seasonLog || [];
     if (log.length === 0) return null;
     const entry = log[0];
     const allTeams = (career.div === 2 ? comp?.teams2 : comp?.teams) || [];
     const clTeams = clComp?.teams || [];
+    const uelTeams = uelComp?.teams || [];
 
     let rivalTeam: any = null;
     let aggregateInfo: any = null;
@@ -646,6 +647,62 @@ export const CareerView = ({
           };
         }
       }
+    } else if (entry.isEuropaLeague) {
+      rivalTeam = uelTeams.find((t: any) => t.name === entry.rival || t.name === entry.rival?.name || t.id === entry.rival?.id) || {
+        name: entry.rival?.name || entry.rival || 'Rival UEL',
+        color1: '#c2410c',
+        color2: '#f97316'
+      };
+
+      // Si fue partido eliminatorio de ida y vuelta en Europa League
+      const careerUelTeam = uelTeams.find((t: any) => t.id === uelComp?.careerTeamId) ||
+        uelTeams.find((t: any) => t.name === (uelComp?.careerTeamName || team?.name)) || null;
+
+      const phaseKey = ['Dieciseisavos', 'Octavos', 'Cuartos', 'Semis'].find(p => (entry.phase === p || (entry.competitionLabel || '').includes(p)));
+      if (phaseKey && uelComp?.bracket?.[phaseKey] && careerUelTeam) {
+        const bMatches = Array.isArray(uelComp.bracket[phaseKey]) ? uelComp.bracket[phaseKey] : [uelComp.bracket[phaseKey]];
+        const bMatch = bMatches.find((bm: any) => bm && (bm.hId === careerUelTeam.id || bm.aId === careerUelTeam.id));
+        if (bMatch && bMatch.sh !== null) {
+          const hasVuelta = bMatch.sh2 !== null && bMatch.sh2 !== undefined;
+          const isVuelta = (entry.competitionLabel || '').includes('Vuelta') || hasVuelta;
+
+          const totHId = (bMatch.sh || 0) + (bMatch.sh2 || 0);
+          const totAId = (bMatch.sa || 0) + (bMatch.sa2 || 0);
+
+          const globalLeft = isVuelta ? totAId : totHId;
+          const globalRight = isVuelta ? totHId : totAId;
+
+          let qualified = null;
+          if (hasVuelta) {
+            let winnerId = null;
+            if (totHId > totAId) winnerId = bMatch.hId;
+            else if (totAId > totHId) winnerId = bMatch.aId;
+            else if (bMatch.penH !== null && bMatch.penH !== undefined) {
+              winnerId = (bMatch.penH || 0) > (bMatch.penA || 0) ? bMatch.hId : bMatch.aId;
+            }
+            if (winnerId !== null) {
+              qualified = winnerId === careerUelTeam.id;
+            }
+          }
+
+          let penaltiesText = null;
+          if (hasVuelta && bMatch.penH !== null && bMatch.penH !== undefined && bMatch.penA !== null && bMatch.penA !== undefined) {
+            const penLeft = isVuelta ? bMatch.penA : bMatch.penH;
+            const penRight = isVuelta ? bMatch.penH : bMatch.penA;
+            penaltiesText = `(${penLeft}-${penRight} pen.)`;
+          }
+
+          aggregateInfo = {
+            phaseName: phaseKey,
+            isVuelta,
+            leg1Score: `${bMatch.sh} - ${bMatch.sa}`,
+            leg2Score: hasVuelta ? `${bMatch.sh2} - ${bMatch.sa2}` : null,
+            globalScoreText: hasVuelta ? `${globalLeft} - ${globalRight}` : `${bMatch.sh} - ${bMatch.sa}`,
+            penaltiesText,
+            qualified
+          };
+        }
+      }
     } else {
       rivalTeam = allTeams.find((t: any) => t.name === entry.rival || t.name === entry.rival?.name || t.id === entry.rival?.id) || {
         name: entry.rival?.name || entry.rival || `Rival J${entry.matchday}`,
@@ -660,6 +717,8 @@ export const CareerView = ({
       ...entry,
       competitionLabel: entry.isChampions
         ? `UEFA Champions League · ${clPhaseLabel(entry.phase || 'groups')}`
+        : entry.isEuropaLeague
+        ? `UEFA Europa League · ${uelPhaseLabel(entry.phase || 'Dieciseisavos')}`
         : `${comp?.name || 'Liga'} · Jornada ${entry.matchday}`,
       rivalTeam,
       isHome,
@@ -669,7 +728,7 @@ export const CareerView = ({
       awayTeam: isHome ? rivalTeam : team,
       aggregateInfo
     };
-  }, [career.seasonLog, comp, clComp, team, career.div]);
+  }, [career.seasonLog, comp, clComp, uelComp, team, career.div]);
 
   // Calendario Global de la Temporada (Liga Nacional + Champions League + Oficinas / FIFA)
   const calendarMonths = useMemo(() => {
@@ -677,9 +736,12 @@ export const CareerView = ({
     const clTeams = clComp?.teams || [];
     const logMap = new Map();
     const clLogList: any[] = [];
+    const uelLogList: any[] = [];
     (career.seasonLog || []).forEach((l: any) => {
       if (l.isChampions) {
         clLogList.push(l);
+      } else if (l.isEuropaLeague) {
+        uelLogList.push(l);
       } else {
         logMap.set(l.matchday, l);
       }
@@ -959,7 +1021,7 @@ export const CareerView = ({
     }
 
     return monthsResult;
-  }, [schedule, comp, clComp, career.div, career.teamId, career.seasonLog, totalRoundsCount, isClQualified, team]);
+  }, [schedule, comp, clComp, uelComp, career.div, career.teamId, career.seasonLog, totalRoundsCount, isClQualified, isUelQualified, team]);
 
   const handleApplyToJob = (v: any) => {
     if (onSubmitApplication) {
@@ -1606,8 +1668,8 @@ export const CareerView = ({
                       </div>
                     )}
 
-                    {/* Botón para iniciar nueva temporada global cuando Champions League ha finalizado */}
-                    {(championsFinished || careerCurrentWeek >= 40) && onNewSeason && (
+                    {/* Botón para iniciar nueva temporada global cuando Champions League ha finalizado o el club completó su recorrido */}
+                    {(championsFinished || careerCurrentWeek >= 40 || (allLeaguesFinished && !clInfo?.alive && !uelInfo?.alive)) && onNewSeason && (
                       <button
                         onClick={onNewSeason}
                         className='w-full bg-amber-500 hover:bg-amber-400 text-slate-950 py-3.5 rounded-2xl text-[10px] font-black uppercase italic tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 border border-amber-300/60'
@@ -3836,6 +3898,7 @@ export const CareerMatchView = ({ matchState, rolling, onRoll, onFinish, ui }) =
   if (!matchState) return null;
 
   const isChampions = matchState.isChampions || matchState.careerChampionsMatch;
+  const isUel = matchState.isEuropaLeague || matchState.careerUelMatch;
 
   return (
     <div className='flex-grow flex flex-col px-4'>
@@ -3843,14 +3906,22 @@ export const CareerMatchView = ({ matchState, rolling, onRoll, onFinish, ui }) =
         <div className='w-10' />
         <div className='flex flex-col items-center gap-1'>
           <div className={`px-4 py-1 backdrop-blur-md rounded-full text-[9px] font-black uppercase italic shadow-sm ${
-            isChampions ? 'bg-blue-900/60 text-white border border-blue-400/30' : 'bg-red-900/60 text-white border border-red-500/30'
+            isChampions
+              ? 'bg-blue-900/60 text-white border border-blue-400/30'
+              : isUel
+              ? 'bg-amber-900/60 text-white border border-amber-500/30'
+              : 'bg-red-900/60 text-white border border-red-500/30'
           }`}>
-            {isChampions ? '⭐ UEFA Champions League' : 'En Directo'}
+            {isChampions ? '⭐ UEFA Champions League' : isUel ? '🔥 UEFA Europa League' : 'En Directo'}
           </div>
           <span className='text-[8px] font-black uppercase italic text-slate-300 tracking-wider flex items-center gap-1.5'>
             {isChampions
               ? `${matchState.championsPhase ? clPhaseLabel(matchState.championsPhase) : 'Noche Europea'}${
                   matchState.isVuelta ? ' · Partido de Vuelta' : matchState.championsPhase === 'Final' ? ' · Gran Final' : ' · Partido de Ida'
+                }`
+              : isUel
+              ? `${matchState.uelPhase ? uelPhaseLabel(matchState.uelPhase) : 'Europa League'}${
+                  matchState.isVuelta ? ' · Partido de Vuelta' : matchState.uelPhase === 'Final' ? ' · Gran Final' : ' · Partido de Ida'
                 }`
               : 'Jornada de Liga'}
           </span>
@@ -3861,6 +3932,8 @@ export const CareerMatchView = ({ matchState, rolling, onRoll, onFinish, ui }) =
       <div className={`backdrop-blur-md rounded-[2.5rem] p-6 mb-4 border-b-4 relative shadow-xl ${
         isChampions
           ? 'bg-gradient-to-br from-blue-950/60 via-slate-900/60 to-indigo-950/60 border-blue-700/60 shadow-blue-500/10'
+          : isUel
+          ? 'bg-gradient-to-br from-amber-950/60 via-slate-900/60 to-orange-950/60 border-amber-600/60 shadow-amber-500/10'
           : 'bg-slate-900/40 border-slate-800'
       }`}>
         <div className='flex items-center'>
@@ -3873,11 +3946,15 @@ export const CareerMatchView = ({ matchState, rolling, onRoll, onFinish, ui }) =
 
           <div className='px-4 flex flex-col items-center shrink-0 min-w-[140px]'>
             {matchState.aggregate && (
-              <div className='mb-2 bg-gradient-to-r from-blue-600/50 via-indigo-600/60 to-blue-600/50 border border-blue-400/50 px-3 py-1 rounded-full flex flex-col items-center shadow-lg'>
+              <div className={`mb-2 px-3 py-1 rounded-full flex flex-col items-center shadow-lg border ${
+                isUel
+                  ? 'bg-gradient-to-r from-amber-600/50 via-orange-600/60 to-amber-600/50 border-amber-400/50'
+                  : 'bg-gradient-to-r from-blue-600/50 via-indigo-600/60 to-blue-600/50 border-blue-400/50'
+              }`}>
                 <span className='text-[9px] font-black uppercase italic text-amber-300 tracking-wider whitespace-nowrap'>
                   Global: {matchState.aggregate.sh + matchState.scoreH} - {matchState.aggregate.sa + matchState.scoreA}
                 </span>
-                <span className='text-[7px] text-blue-200 font-bold tracking-tight'>
+                <span className={`text-[7px] font-bold tracking-tight ${isUel ? 'text-amber-200' : 'text-blue-200'}`}>
                   (Ida: {matchState.aggregate.sh} - {matchState.aggregate.sa})
                 </span>
               </div>

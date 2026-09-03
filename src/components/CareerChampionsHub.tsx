@@ -326,9 +326,8 @@ export const CareerChampionsHub: React.FC<CareerChampionsHubProps> = ({
 
   const hasTrainedThisClMatch = useMemo(() => {
     return career.trainedMatchKey === clMatchKey ||
-      career.trainedClMatchKey === clMatchKey ||
-      (Boolean(currentWeek) && career.trainedWeek === currentWeek);
-  }, [career.trainedMatchKey, career.trainedClMatchKey, career.trainedWeek, clMatchKey, currentWeek]);
+      career.trainedClMatchKey === clMatchKey;
+  }, [career.trainedMatchKey, career.trainedClMatchKey, clMatchKey]);
 
   // Determinar si el club fue campeón de Champions
   const isChampion = useMemo(() => {

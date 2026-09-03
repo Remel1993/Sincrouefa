@@ -137,9 +137,8 @@ export const CareerUELHub: React.FC<CareerUELHubProps> = ({
 
   const hasTrainedThisUelMatch = useMemo(() => {
     return career?.trainedMatchKey === uelMatchKey ||
-      career?.trainedUelMatchKey === uelMatchKey ||
-      (Boolean(currentWeek) && career?.trainedWeek === currentWeek);
-  }, [career?.trainedMatchKey, career?.trainedUelMatchKey, career?.trainedWeek, uelMatchKey, currentWeek]);
+      career?.trainedUelMatchKey === uelMatchKey;
+  }, [career?.trainedMatchKey, career?.trainedUelMatchKey, uelMatchKey]);
 
   // Determinar si el club no clasificó a UEFA Europa League esta temporada
   const isNotQualified = useMemo(() => {
