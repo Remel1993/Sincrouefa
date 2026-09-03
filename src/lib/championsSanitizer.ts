@@ -462,13 +462,15 @@ export const syncChampionsRepescadosToUEL = (c1Comp: any, uelComp: any): any => 
   }
 
   // Asegurar que tenemos exactamente 16 de liga y 8 repescados (total 24)
+  const repescadosWithUelIds = safeRealRepescados.slice(0, 8).map((r: any, idx: number) => ({
+    ...r,
+    id: 17 + idx,
+    isRepesca: true
+  }));
+
   const updatedTeams = [
     ...leagueTeams.slice(0, 16),
-    ...safeRealRepescados.slice(0, 8).map((r: any, idx: number) => ({
-      ...r,
-      id: 17 + idx,
-      isRepesca: true
-    }))
+    ...repescadosWithUelIds
   ];
 
   // Actualizar el bracket de Octavos para que 'aId' apunte fielmente a los IDs 17..24
@@ -521,7 +523,7 @@ export const syncChampionsRepescadosToUEL = (c1Comp: any, uelComp: any): any => 
   let userTeamId = uelComp.userTeamId;
   let careerTeamName = uelComp.careerTeamName;
 
-  const userRepescado = safeRealRepescados.find((r: any) => 
+  const userRepescado = repescadosWithUelIds.find((r: any) => 
     (c1Comp.careerTeamId && (r.originalId === c1Comp.careerTeamId || r.id === c1Comp.careerTeamId)) ||
     (c1Comp.userTeamId && (r.originalId === c1Comp.userTeamId || r.id === c1Comp.userTeamId)) ||
     (c1Comp.careerTeamName && r.name === c1Comp.careerTeamName) ||

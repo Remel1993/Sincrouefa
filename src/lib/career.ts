@@ -467,10 +467,12 @@ export const seasonObjectives = ({
     peStatusLabel = `${estimatedSeasonPE}/${peTarget} PE`;
   }
 
-  // 4) Reputación del Mánager
-  const repTarget = clampRep(Math.min(100, (reputation || 0) + (tier >= 3 ? 4 : 6)));
+  // 4) Reputación del Mánager: se ancla a la reputación inicial de la temporada para que la meta sea fija y alcanzable
+  const baseRep = career?.seasonStartReputation ?? Math.max(10, (reputation || 10) - Math.round(wins * 0.3));
+  const repIncrement = tier >= 3 ? 4 : 6;
+  const repTarget = clampRep(Math.min(100, baseRep + repIncrement));
   const isRepDone = (reputation || 0) >= repTarget;
-  const repProgress = Math.min(100, Math.round(((reputation || 10) / repTarget) * 100));
+  const repProgress = Math.min(100, Math.max(10, Math.round(((reputation || 10) / Math.max(1, repTarget)) * 100)));
 
   let repStatus: 'completed' | 'on_track' | 'at_risk' | 'failed' = 'on_track';
   let repStatusLabel = 'En Progreso';
