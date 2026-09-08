@@ -39,7 +39,7 @@ export const PRESETS: Record<string, TeamPreset[]> = {
   IT: [
     { name: 'Inter Milan', att: 5, opp: 5, def: 4, color1: '#003399', color2: '#000000', league: 'IT' },
     { name: 'Atalanta', att: 4, opp: 5, def: 4, color1: '#1e71b8', color2: '#000000', league: 'IT' },
-    { name: 'Napoli', att: 5, opp: 5, def: 4, color1: '#00bfff', color2: '#ffffff', league: 'IT' },
+    { name: 'Napoli', att: 4, opp: 5, def: 4, color1: '#00bfff', color2: '#ffffff', league: 'IT' },
     { name: 'Juventus', att: 4, opp: 5, def: 4, color1: '#ffffff', color2: '#000000', league: 'IT' },
     { name: 'AC Milan', att: 5, opp: 4, def: 4, color1: '#fb090b', color2: '#000000', league: 'IT' },
     { name: 'AS Roma', att: 4, opp: 4, def: 4, color1: '#8e1f2f', color2: '#f0bc42', league: 'IT' },
