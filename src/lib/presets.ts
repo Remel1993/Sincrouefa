@@ -81,7 +81,7 @@ export const PRESETS: Record<string, TeamPreset[]> = {
     { name: 'Sunderland', att: 2, opp: 4, def: 3, color1: '#ff0000', color2: '#ffffff', league: 'EN' }
   ],
   NL: [ 
-    { name: 'PSV Eindhoven', att: 4, opp: 5, def: 3, color1: '#ff0000', color2: '#ffffff', league: 'NL' },
+    { name: 'PSV Eindhoven', att: 5, opp: 4, def: 3, color1: '#ff0000', color2: '#ffffff', league: 'NL' },
     { name: 'Feyenoord', att: 4, opp: 4, def: 4, color1: '#ff0000', color2: '#ffffff', league: 'NL' },
     { name: 'Ajax', att: 4, opp: 3, def: 4, color1: '#ffffff', color2: '#ff0000', league: 'NL' },
     { name: 'AZ Alkmaar', att: 3, opp: 4, def: 4, color1: '#ff0000', color2: '#ffffff', league: 'NL' },
