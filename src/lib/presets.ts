@@ -185,7 +185,7 @@ export const PRESETS: Record<string, TeamPreset[]> = {
 
 export const PRESETS_2: Record<string, TeamPreset[]> = {
   ES: [
-    { name: 'Almería', att: 1, opp: 3, def: 2, color1: '#e30613', color2: '#ffffff', league: 'ES' },
+    { name: 'Almería', att: 2, opp: 3, def: 2, color1: '#e30613', color2: '#ffffff', league: 'ES' },
     { name: 'Cádiz CF', att: 1, opp: 3, def: 2, color1: '#fde100', color2: '#0000ff', league: 'ES' },
     { name: 'Granada CF', att: 2, opp: 2, def: 2, color1: '#c8102e', color2: '#ffffff', league: 'ES' },
     { name: 'SD Eibar', att: 3, opp: 2, def: 2, color1: '#a71930', color2: '#004d98', league: 'ES' },
@@ -198,7 +198,7 @@ export const PRESETS_2: Record<string, TeamPreset[]> = {
     { name: 'CD Tenerife', att: 1, opp: 3, def: 2, color1: '#ffffff', color2: '#00529f', league: 'ES' },
     { name: 'Burgos CF', att: 1, opp: 2, def: 3, color1: '#ffffff', color2: '#000000', league: 'ES' },
     { name: 'SD Huesca', att: 1, opp: 2, def: 3, color1: '#a71930', color2: '#004d98', league: 'ES' },
-    { name: 'Málaga CF', att: 1, opp: 3, def: 2, color1: '#ffffff', color2: '#87ceeb', league: 'ES' },
+    { name: 'Málaga CF', att: 3, opp: 3, def: 3, color1: '#ffffff', color2: '#87ceeb', league: 'ES' },
     { name: 'Dep. La Coruña', att: 4, opp: 3, def: 3, color1: '#ffffff', color2: '#00529f', league: 'ES' },
     { name: 'Castellón', att: 2, opp: 3, def: 1, color1: '#000000', color2: '#ffffff', league: 'ES' },
     { name: 'Córdoba CF', att: 2, opp: 3, def: 1, color1: '#ffffff', color2: '#006400', league: 'ES' },
