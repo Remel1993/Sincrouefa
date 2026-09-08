@@ -124,7 +124,7 @@ export const PRESETS: Record<string, TeamPreset[]> = {
     { name: 'PSG', att: 5, opp: 5, def: 4, color1: '#004170', color2: '#da291c', league: 'FR' },
     { name: 'AS Monaco', att: 4, opp: 4, def: 4, color1: '#e30613', color2: '#ffffff', league: 'FR' },
     { name: 'Marseille', att: 4, opp: 5, def: 3, color1: '#ffffff', color2: '#009dff', league: 'FR' },
-    { name: 'Lille OSC', att: 4, opp: 5, def: 4, color1: '#e2001a', color2: '#002654', league: 'FR' },
+    { name: 'Lille OSC', att: 4, opp: 5, def: 3, color1: '#e2001a', color2: '#002654', league: 'FR' },
     { name: 'Olympique Lyon', att: 4, opp: 5, def: 3, color1: '#ffffff', color2: '#da291c', league: 'FR' },
     { name: 'RC Lens', att: 4, opp: 4, def: 4, color1: '#ed1c24', color2: '#ffcc00', league: 'FR' },
     { name: 'OGC Nice', att: 4, opp: 4, def: 3, color1: '#000000', color2: '#e30613', league: 'FR' },
