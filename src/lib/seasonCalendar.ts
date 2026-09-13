@@ -1223,6 +1223,48 @@ export const getExpectedCupMatchdayForWeek = (compId: string, week: number): num
   return null;
 };
 
+export const getLatestExpectedCupMatchdayUpToWeek = (compId: string, week: number): number => {
+  if (compId === 'C1') {
+    if (week < 7) return 0;
+    if (week < 9) return 1;
+    if (week < 11) return 2;
+    if (week < 14) return 3;
+    if (week < 16) return 4;
+    if (week < 18) return 5;
+    if (week < 25) return 6;
+    if (week < 27) return 7;
+    if (week < 30) return 8;
+    if (week < 32) return 9;
+    if (week < 34) return 10;
+    if (week < 36) return 11;
+    if (week < 41) return 12;
+    return 13;
+  }
+  if (compId === 'C3') {
+    if (week < 22) return 0;
+    if (week < 23) return 1;
+    if (week < 25) return 2;
+    if (week < 27) return 3;
+    if (week < 30) return 4;
+    if (week < 32) return 5;
+    if (week < 34) return 6;
+    if (week < 36) return 7;
+    if (week < 39) return 8;
+    return 9;
+  }
+  if (compId === 'C2') {
+    if (week < 5) return 0;
+    if (week < 13) return 1;
+    if (week < 21) return 2;
+    if (week < 29) return 3;
+    if (week < 35) return 4;
+    if (week < 41) return 5;
+    if (week < 42) return 6;
+    return 7;
+  }
+  return 0;
+};
+
 export interface CompetitionWeekStatus {
   isScheduledThisWeek: boolean;
   canPlayOrSimulate: boolean;
