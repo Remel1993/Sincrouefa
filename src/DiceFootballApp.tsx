@@ -46,7 +46,7 @@ import {
   isEuropaLeagueWeek, getNextEuropaLeagueWeek,
   isWorldCupMatchWeek, getNextWorldCupWeek,
   getWeekForLeagueMatchday, getLeagueMatchdayForWeek,
-  getExpectedCupMatchdayForWeek, getCompetitionWeekStatus
+  getExpectedCupMatchdayForWeek, getLatestExpectedCupMatchdayUpToWeek, getCompetitionWeekStatus
 } from '@/lib/seasonCalendar';
 import { sanitizeChampionsBracket, syncChampionsRepescadosToUEL, sanitizeEuropaLeagueTeams } from '@/lib/championsSanitizer';
 import { ALL_WORLD_CUP_TEAMS, buildDynamicWCPool } from '@/lib/worldCup';
@@ -1877,6 +1877,40 @@ function DiceFootballApp() {
 
   // Empieza el partido del técnico con su distribución táctica elegida
   const startCareerMatch = () => {
+    // Si hay un partido continental pendiente esta semana, NO se puede disputar la liga antes de Europa
+    const currentWk = seasonState.currentWeek || 1;
+    const expClMd = getExpectedCupMatchdayForWeek('C1', currentWk) ?? 99;
+    const expUelMd = getExpectedCupMatchdayForWeek('C3', currentWk) ?? 99;
+    const isCareerAliveInC1 = Boolean(careerClInfo?.alive && !careerClInfo?.champion && !comps['C1']?.showWinner && comps['C1']?.phase !== 'Terminado');
+    const isCareerAliveInC3 = Boolean(careerUelInfo?.alive && !careerUelInfo?.champion && !comps['C3']?.showWinner && comps['C3']?.phase !== 'Terminado');
+    const weekData = getSemanaCalendario(currentWk);
+    const hasChampions = Boolean(weekData?.fixtures?.some(f => f.competicion === 'CHAMPIONS' && f.esPartido));
+    const hasEuropa = Boolean(weekData?.fixtures?.some(f => f.competicion === 'EUROPA_LEAGUE' && f.esPartido));
+    const isClGroupsFinished = Boolean(!comps['C1'] || comps['C1'].phase !== 'groups' || (comps['C1'].matchday || 0) >= 6);
+    const uelPhase = comps['C3']?.phase || 'Dieciseisavos';
+    const isUelReady = uelPhase === 'Dieciseisavos' || isClGroupsFinished;
+
+    const latestExpCl = getLatestExpectedCupMatchdayUpToWeek('C1', currentWk);
+    const latestExpUel = getLatestExpectedCupMatchdayUpToWeek('C3', currentWk);
+
+    const userPendingCl = isCareerAliveInC1 && (
+      (hasChampions && ((comps['C1']?.matchday || 0) < expClMd)) ||
+      ((comps['C1']?.matchday || 0) < latestExpCl)
+    );
+    const userPendingUel = isCareerAliveInC3 && isUelReady && (
+      (hasEuropa && ((comps['C3']?.matchday || 0) < expUelMd)) ||
+      ((comps['C3']?.matchday || 0) < latestExpUel)
+    );
+
+    if (userPendingCl) {
+      startCareerChampionsMatch();
+      return;
+    }
+    if (userPendingUel) {
+      startCareerUelMatch();
+      return;
+    }
+
     if (!careerFixture || !careerTeam || !careerRival) return;
     const base = {
       att: Math.max(career.baseDist?.att || 1, careerTeam.att || 1),
@@ -2572,8 +2606,28 @@ function DiceFootballApp() {
     const uelPhase = uelComp?.phase || 'Dieciseisavos';
     const isUelReady = uelPhase === 'Dieciseisavos' || isClGroupsFinished;
 
-    const userPendingCl = hasChampions && isCareerAliveInC1 && ((comps['C1']?.matchday || 0) < (expClMd ?? 99)) && currentWk < 42;
-    const userPendingUel = hasEuropa && isCareerAliveInC3 && isUelReady && ((comps['C3']?.matchday || 0) < (expUelMd ?? 99)) && currentWk < 42;
+    const latestExpCl = getLatestExpectedCupMatchdayUpToWeek('C1', currentWk);
+    const latestExpUel = getLatestExpectedCupMatchdayUpToWeek('C3', currentWk);
+
+    const userPendingCl = isCareerAliveInC1 && currentWk <= 42 && (
+      (hasChampions && ((comps['C1']?.matchday || 0) < (expClMd ?? 99))) ||
+      ((comps['C1']?.matchday || 0) < latestExpCl)
+    );
+    const userPendingUel = isCareerAliveInC3 && isUelReady && currentWk <= 42 && (
+      (hasEuropa && ((comps['C3']?.matchday || 0) < (expUelMd ?? 99))) ||
+      ((comps['C3']?.matchday || 0) < latestExpUel)
+    );
+
+    // Si hay partidos continentales pendientes para el mánager, se resuelven de forma estricta primero
+    if (userPendingCl) {
+      simulateCareerChampionsMatch();
+      return;
+    }
+    if (userPendingUel) {
+      simulateCareerUelMatch();
+      return;
+    }
+
     const careerMd = (career.div === 2 ? comps[career.compId]?.matchday2 : comps[career.compId]?.matchday) || 0;
     const userPendingLeague = (hasLeague || !weekData) && career?.active && careerTeam && careerFixture && !careerDivisionFinished && (careerMd < (expLeagueMd ?? (careerMd + 1))) && currentWk < 40;
 
@@ -4046,18 +4100,6 @@ function DiceFootballApp() {
 
   // Simulación rápida de un partido de Champions League
   const simulateCareerChampionsMatch = () => {
-    const currentWk = seasonState.currentWeek || 1;
-    const expLeagueMd = getLeagueMatchdayForWeek(currentWk);
-    const hasLeagueThisWeek = getSemanaCalendario(currentWk)?.fixtures?.some(f => f.competicion === 'LIGA' && f.esPartido);
-    const careerMd = (career.div === 2 ? comps[career.compId]?.matchday2 : comps[career.compId]?.matchday) || 0;
-    const userPendingLeague = (hasLeagueThisWeek || !getSemanaCalendario(currentWk)) && career?.active && careerTeam && careerFixture && !careerDivisionFinished && (careerMd < (expLeagueMd ?? (careerMd + 1))) && currentWk < 40;
-
-    // Si confluyen partidos de liga pendientes esta semana, simular de forma simultánea
-    if (userPendingLeague) {
-      simulateSeasonWeek();
-      return;
-    }
-
     let clComp = comps['C1'];
     if (!clComp?.teams?.length) {
       initOrDrawChampions(false);
@@ -4600,18 +4642,6 @@ function DiceFootballApp() {
   };
 
   const simulateCareerUelMatch = () => {
-    const currentWk = seasonState.currentWeek || 1;
-    const expLeagueMd = getLeagueMatchdayForWeek(currentWk);
-    const hasLeagueThisWeek = getSemanaCalendario(currentWk)?.fixtures?.some(f => f.competicion === 'LIGA' && f.esPartido);
-    const careerMd = (career.div === 2 ? comps[career.compId]?.matchday2 : comps[career.compId]?.matchday) || 0;
-    const userPendingLeague = (hasLeagueThisWeek || !getSemanaCalendario(currentWk)) && career?.active && careerTeam && careerFixture && !careerDivisionFinished && (careerMd < (expLeagueMd ?? (careerMd + 1))) && currentWk < 40;
-
-    // Si confluyen partidos de liga pendientes esta semana, simular de forma simultánea
-    if (userPendingLeague) {
-      simulateSeasonWeek();
-      return;
-    }
-
     let uelComp = comps['C3'];
     if (!uelComp?.teams?.length) {
       const autoData = getAutoFillData('C3', comps);
