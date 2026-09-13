@@ -2068,10 +2068,13 @@ function DiceFootballApp() {
     const expPos = expectedPosition(currentTeams, career.teamId);
     const tgtPos = (career.tier || 1) >= 4 ? 1 : (career.tier || 1) === 3 ? 4 : (career.div === 2 ? 3 : 10);
 
+    const homeTeamName = careerIsHome ? careerTeam.name : (careerRival?.name || 'Rival');
+    const awayTeamName = careerIsHome ? (careerRival?.name || 'Rival') : careerTeam.name;
+
     const simFeedback = {
       matchday: careerMd + 1,
-      homeName: careerIsHome ? careerTeam.name : (careerRival?.name || 'Rival'),
-      awayName: careerIsHome ? (careerRival?.name || 'Rival') : careerTeam.name,
+      homeName: homeTeamName,
+      awayName: awayTeamName,
       scoreH,
       scoreA,
       myGf,
@@ -2083,9 +2086,27 @@ function DiceFootballApp() {
       targetPos: tgtPos,
       repDelta: rep,
       peDelta: totalPeGained,
+      peGained: totalPeGained,
+      repGained: rep,
       isHome: careerIsHome,
       rivalName: careerRival?.name || '',
-      trainingResult: effectiveTraining || undefined
+      trainingResult: effectiveTraining || undefined,
+      isSimultaneous: false,
+      leagueMatch: {
+        rivalName: careerRival?.name || 'Rival',
+        homeName: homeTeamName,
+        awayName: awayTeamName,
+        scoreH,
+        scoreA,
+        isHome: careerIsHome,
+        myGf,
+        myGa,
+        result,
+        posBefore,
+        posAfter,
+        peGained: totalPeGained,
+        repGained: rep
+      }
     };
 
     setCareer(c => {
@@ -2251,7 +2272,21 @@ function DiceFootballApp() {
         applicationHistory: updatedAppHistory,
         pendingAppResolutionModal: appResolutionModal || c.pendingAppResolutionModal,
         seasonLog: [
-          { matchday: careerMd + 1, rival: careerRival?.name, gf: myGf, ga: myGa, result, rep, pe: totalPeGained, bonus: bonusPE > 0 },
+          {
+            matchday: careerMd + 1,
+            rival: careerRival?.name,
+            homeName: homeTeamName,
+            awayName: awayTeamName,
+            scoreH,
+            scoreA,
+            isHome: careerIsHome,
+            gf: myGf,
+            ga: myGa,
+            result,
+            rep,
+            pe: totalPeGained,
+            bonus: bonusPE > 0
+          },
           ...(c.seasonLog || [])
         ].slice(0, 60)
       };
@@ -2546,6 +2581,8 @@ function DiceFootballApp() {
     let leagueMatchFeedback: any = null;
     let clMatchFeedback: any = null;
     let uelMatchFeedback: any = null;
+    let userClMatchOverride: any = null;
+    let userUelMatchOverride: any = null;
     let totalSimPe = 0;
     let totalSimRep = 0;
     let winsCount = 0;
@@ -2593,6 +2630,11 @@ function DiceFootballApp() {
       newLogs.push({
         matchday: careerMd + 1,
         rival: careerRival.name,
+        homeName: home.name,
+        awayName: away.name,
+        scoreH: sh,
+        scoreA: sa,
+        isHome: careerIsHome,
         gf: myGf,
         ga: myGa,
         result: res,
@@ -2647,6 +2689,11 @@ function DiceFootballApp() {
 
       leagueMatchFeedback = {
         rivalName: careerRival.name,
+        homeName: home.name,
+        awayName: away.name,
+        scoreH: sh,
+        scoreA: sa,
+        isHome: careerIsHome,
         myGf,
         myGa,
         result: res,
@@ -2661,14 +2708,21 @@ function DiceFootballApp() {
     if (userPendingCl && careerClTeam && careerClInfo?.rivalTeam) {
       const clRival = careerClInfo.rivalTeam;
       const isClHome = Boolean(careerClInfo.isHome ?? true);
-      const hTeam = isClHome ? careerClTeam : clRival;
-      const aTeam = isClHome ? clRival : careerClTeam;
-      const { sh: clSh, sa: clSa } = simMatchGoals(hTeam?.opp, hTeam?.att, aTeam?.def, aTeam?.opp, aTeam?.att, hTeam?.def);
+      const clHTeam = isClHome ? careerClTeam : clRival;
+      const clATeam = isClHome ? clRival : careerClTeam;
+      const { sh: clSh, sa: clSa } = simMatchGoals(clHTeam?.opp, clHTeam?.att, clATeam?.def, clATeam?.opp, clATeam?.att, clHTeam?.def);
       const myClGf = isClHome ? clSh : clSa;
       const myClGa = isClHome ? clSa : clSh;
       const clRes = myClGf > myClGa ? 'W' : myClGf === myClGa ? 'D' : 'L';
       const clPe = clRes === 'W' ? (careerClInfo.phase === 'Final' ? 6 : 3) : clRes === 'D' ? 2 : 0;
       const clRep = clRes === 'W' ? (careerClInfo.phase === 'Final' ? 2.5 : 0.8) : clRes === 'D' ? 0.3 : -0.1;
+
+      userClMatchOverride = {
+        homeId: clHTeam.id,
+        awayId: clATeam.id,
+        sh: clSh,
+        sa: clSa
+      };
 
       totalSimPe += clPe;
       totalSimRep += clRep;
@@ -2682,6 +2736,11 @@ function DiceFootballApp() {
       newLogs.push({
         matchday: `UCL - ${careerClInfo.phaseLabel || 'Jornada'}`,
         rival: clRival.name,
+        homeName: clHTeam.name,
+        awayName: clATeam.name,
+        scoreH: clSh,
+        scoreA: clSa,
+        isHome: isClHome,
         gf: myClGf,
         ga: myClGa,
         result: clRes,
@@ -2692,6 +2751,11 @@ function DiceFootballApp() {
 
       clMatchFeedback = {
         rivalName: clRival.name,
+        homeName: clHTeam.name,
+        awayName: clATeam.name,
+        scoreH: clSh,
+        scoreA: clSa,
+        isHome: isClHome,
         myGf: myClGf,
         myGa: myClGa,
         result: clRes,
@@ -2705,14 +2769,21 @@ function DiceFootballApp() {
     if (userPendingUel && careerUelTeam && careerUelInfo?.rivalTeam) {
       const uelRival = careerUelInfo.rivalTeam;
       const isUelHome = Boolean(careerUelInfo.isHome ?? true);
-      const hTeam = isUelHome ? careerUelTeam : uelRival;
-      const aTeam = isUelHome ? uelRival : careerUelTeam;
-      const { sh: uelSh, sa: uelSa } = simMatchGoals(hTeam?.opp, hTeam?.att, aTeam?.def, aTeam?.opp, aTeam?.att, hTeam?.def);
+      const uelHTeam = isUelHome ? careerUelTeam : uelRival;
+      const uelATeam = isUelHome ? uelRival : careerUelTeam;
+      const { sh: uelSh, sa: uelSa } = simMatchGoals(uelHTeam?.opp, uelHTeam?.att, uelATeam?.def, uelATeam?.opp, uelATeam?.att, uelHTeam?.def);
       const myUelGf = isUelHome ? uelSh : uelSa;
       const myUelGa = isUelHome ? uelSa : uelSh;
       const uelRes = myUelGf > myUelGa ? 'W' : myUelGf === myUelGa ? 'D' : 'L';
       const uelPe = uelRes === 'W' ? (careerUelInfo.phase === 'Final' ? 5 : 3) : uelRes === 'D' ? 2 : 0;
       const uelRep = uelRes === 'W' ? (careerUelInfo.phase === 'Final' ? 2.0 : 0.6) : uelRes === 'D' ? 0.2 : -0.1;
+
+      userUelMatchOverride = {
+        homeId: uelHTeam.id,
+        awayId: uelATeam.id,
+        sh: uelSh,
+        sa: uelSa
+      };
 
       totalSimPe += uelPe;
       totalSimRep += uelRep;
@@ -2726,16 +2797,27 @@ function DiceFootballApp() {
       newLogs.push({
         matchday: `UEL - ${uelPhaseLabel(careerUelInfo.phase)}`,
         rival: uelRival.name,
+        homeName: uelHTeam.name,
+        awayName: uelATeam.name,
+        scoreH: uelSh,
+        scoreA: uelSa,
+        isHome: isUelHome,
         gf: myUelGf,
         ga: myUelGa,
         result: uelRes,
         rep: uelRep,
         pe: uelPe,
-        isUel: true
+        isUel: true,
+        isEuropaLeague: true
       });
 
       uelMatchFeedback = {
         rivalName: uelRival.name,
+        homeName: uelHTeam.name,
+        awayName: uelATeam.name,
+        scoreH: uelSh,
+        scoreA: uelSa,
+        isHome: isUelHome,
         myGf: myUelGf,
         myGa: myUelGa,
         result: uelRes,
@@ -2836,9 +2918,11 @@ function DiceFootballApp() {
         }
         if (hasChampions && c1 && c1.teams && c1.teams.length > 0 && !c1.showWinner && c1.phase !== 'Terminado') {
           let guard = 0;
+          let clOverride = userClMatchOverride;
           while ((expClMd === null || (c1.matchday || 0) < expClMd) && !c1.showWinner && c1.phase !== 'Terminado' && guard++ < 20) {
             const prevMd = c1.matchday;
-            c1 = simulateSingleCupStage(c1, 'C1');
+            c1 = simulateSingleCupStage(c1, 'C1', null, clOverride);
+            clOverride = null;
             if (c1.matchday === prevMd) break;
           }
           next['C1'] = c1;
@@ -2865,9 +2949,11 @@ function DiceFootballApp() {
         const canSimulateUelPhase = !c3 || c3.phase === 'Dieciseisavos' || isClDone;
         if (hasEuropa && c3 && c3.teams && c3.teams.length > 0 && !c3.showWinner && c3.phase !== 'Terminado' && canSimulateUelPhase) {
           let guard = 0;
+          let uelOverride = userUelMatchOverride;
           while ((expUelMd === null || (c3.matchday || 0) < expUelMd) && !c3.showWinner && c3.phase !== 'Terminado' && guard++ < 20) {
             const prevMd = c3.matchday;
-            c3 = simulateSingleCupStage(c3, 'C3', c1);
+            c3 = simulateSingleCupStage(c3, 'C3', c1, uelOverride);
+            uelOverride = null;
             if (c3.matchday === prevMd) break;
           }
           next['C3'] = c3;
@@ -3050,7 +3136,7 @@ function DiceFootballApp() {
         return {
           ...c,
           pe: Math.max(0, (c.pe || 0) + totalSimPe),
-          reputation: Number(Math.max(1, Math.min(5, (c.reputation || 3.0) + totalSimRep)).toFixed(2)),
+          reputation: clampRep((c.reputation || 10) + totalSimRep),
           medicalImmunityWeeks: Math.max(0, (c.medicalImmunityWeeks || 0) - 1),
           stats: newStats,
           lastSimulationFeedback: simFeedback,
@@ -3703,6 +3789,11 @@ function DiceFootballApp() {
           isChampions: true,
           phaseLabel: clPhaseLabel(currentPhase),
           rivalName: rivalName || 'Rival Europeo',
+          homeName: activeHome?.name || 'Local',
+          awayName: activeAway?.name || 'Visitante',
+          scoreH,
+          scoreA,
+          isHome,
           myGf,
           myGa,
           result,
@@ -3712,6 +3803,20 @@ function DiceFootballApp() {
           trainingFeedback,
           repGained,
           headline: `⭐ UEFA Champions League · ${clPhaseLabel(currentPhase)}`,
+          clMatch: {
+            rivalName: rivalName || 'Rival Europeo',
+            homeName: activeHome?.name || 'Local',
+            awayName: activeAway?.name || 'Visitante',
+            scoreH,
+            scoreA,
+            isHome,
+            myGf,
+            myGa,
+            result,
+            phase: clPhaseLabel(currentPhase),
+            peGained: totalPeGained,
+            repGained
+          },
           summary: isChampionsWinner
             ? `🏆 ¡CAMPEÓN DE LA UEFA CHAMPIONS LEAGUE! Derrotas a ${rivalName} en la Gran Final. Ganancia total: +${totalPeGained} PE (+${matchPeGained} partido${extraTrainingPe ? `, +${extraTrainingPe} entreno` : ''}) y ${repGained > 0 ? `+${repGained}` : repGained} reputación.`
             : result === 'W'
@@ -3722,10 +3827,15 @@ function DiceFootballApp() {
         },
         seasonLog: [
           {
-            matchday: (clComp.matchday || 0) + 1,
+            matchday: `UCL - ${clPhaseLabel(currentPhase)}`,
             isChampions: true,
             phase: currentPhase,
             rival: rivalName,
+            homeName: activeHome?.name,
+            awayName: activeAway?.name,
+            scoreH,
+            scoreA,
+            isHome,
             gf: myGf,
             ga: myGa,
             result,
@@ -4252,6 +4362,11 @@ function DiceFootballApp() {
           isEuropaLeague: true,
           phaseLabel: uelPhaseLabel(currentPhase),
           rivalName: rivalName || 'Rival Europeo',
+          homeName: activeHome?.name || 'Local',
+          awayName: activeAway?.name || 'Visitante',
+          scoreH,
+          scoreA,
+          isHome,
           myGf,
           myGa,
           result,
@@ -4260,7 +4375,21 @@ function DiceFootballApp() {
           trainingPeGained: extraTrainingPe,
           trainingFeedback,
           repGained,
-          headline: `🟠 UEFA Europa League · ${currentPhase}`,
+          headline: `🟠 UEFA Europa League · ${uelPhaseLabel(currentPhase)}`,
+          uelMatch: {
+            rivalName: rivalName || 'Rival Europeo',
+            homeName: activeHome?.name || 'Local',
+            awayName: activeAway?.name || 'Visitante',
+            scoreH,
+            scoreA,
+            isHome,
+            myGf,
+            myGa,
+            result,
+            phase: uelPhaseLabel(currentPhase),
+            peGained: totalPeGained,
+            repGained
+          },
           summary: isUelWinner
             ? `🏆 ¡CAMPEÓN DE LA UEFA EUROPA LEAGUE! Vences a ${rivalName} en la Gran Final. Ganancia total: +${totalPeGained} PE y +${repGained} reputación.`
             : result === 'W'
@@ -4271,10 +4400,16 @@ function DiceFootballApp() {
         },
         seasonLog: [
           {
-            matchday: (uelComp.matchday || 0) + 1,
+            matchday: `UEL - ${uelPhaseLabel(currentPhase)}`,
             isEuropaLeague: true,
+            isUel: true,
             phase: currentPhase,
             rival: rivalName,
+            homeName: activeHome?.name,
+            awayName: activeAway?.name,
+            scoreH,
+            scoreA,
+            isHome,
             gf: myGf,
             ga: myGa,
             result,
@@ -4574,7 +4709,7 @@ function DiceFootballApp() {
   };
 
   // Simulación de una sola etapa / jornada de una copa (Champions, Europa League o Mundial)
-  const simulateSingleCupStage = (initialComp: any, compId: string = 'C1', c1Override: any = null) => {
+  const simulateSingleCupStage = (initialComp: any, compId: string = 'C1', c1Override: any = null, userMatchOverride: any = null) => {
     if (!initialComp || initialComp.type === 'league') return initialComp;
     let comp = JSON.parse(JSON.stringify(initialComp));
     const targetId = comp.id || compId || (comp.name?.includes('Champions') || (Array.isArray(comp.groups) && comp.groups.length === 8) ? 'C1' : 'C2');
@@ -4605,10 +4740,22 @@ function DiceFootballApp() {
         const currentRound = schedule[(comp.matchday || 0) % maxMatchdays];
         if (currentRound) {
           currentRound.forEach((m: any) => {
-            const h = (comp.teams || []).find((t: any) => t.id === m.homeId);
-            const a = (comp.teams || []).find((t: any) => t.id === m.awayId);
-            const { sh, sa } = simMatchGoals(h?.opp, h?.att, a?.def, a?.opp, a?.att, h?.def);
-            results.push({ hId: m.homeId, aId: m.awayId, sh, sa, penH: null, penA: null });
+            const isUserMatch = userMatchOverride && (
+              (m.homeId === userMatchOverride.homeId && m.awayId === userMatchOverride.awayId) ||
+              (m.homeId === userMatchOverride.awayId && m.awayId === userMatchOverride.homeId)
+            );
+
+            if (isUserMatch) {
+              const isDirect = m.homeId === userMatchOverride.homeId;
+              const matchSh = isDirect ? userMatchOverride.sh : userMatchOverride.sa;
+              const matchSa = isDirect ? userMatchOverride.sa : userMatchOverride.sh;
+              results.push({ hId: m.homeId, aId: m.awayId, sh: matchSh, sa: matchSa, penH: null, penA: null });
+            } else {
+              const h = (comp.teams || []).find((t: any) => t.id === m.homeId);
+              const a = (comp.teams || []).find((t: any) => t.id === m.awayId);
+              const { sh, sa } = simMatchGoals(h?.opp, h?.att, a?.def, a?.opp, a?.att, h?.def);
+              results.push({ hId: m.homeId, aId: m.awayId, sh, sa, penH: null, penA: null });
+            }
           });
         }
       });
@@ -4663,17 +4810,35 @@ function DiceFootballApp() {
         const awayId = isVuelta ? m.hId : m.aId;
         const h = (comp.teams || []).find((t: any) => t.id === homeId);
         const a = (comp.teams || []).find((t: any) => t.id === awayId);
-        const { sh: simH, sa: simA } = simMatchGoals(h?.opp, h?.att, a?.def, a?.opp, a?.att, h?.def);
 
-        const matchSh = isVuelta ? simA : simH;
-        const matchSa = isVuelta ? simH : simA;
+        const isUserMatch = userMatchOverride && (
+          (homeId === userMatchOverride.homeId && awayId === userMatchOverride.awayId) ||
+          (homeId === userMatchOverride.awayId && awayId === userMatchOverride.homeId) ||
+          (m.hId === userMatchOverride.homeId && m.aId === userMatchOverride.awayId) ||
+          (m.hId === userMatchOverride.awayId && m.aId === userMatchOverride.homeId)
+        );
+
+        let matchSh: number;
+        let matchSa: number;
         let penH: any = null, penA: any = null;
+
+        if (isUserMatch) {
+          const isDirect = homeId === userMatchOverride.homeId;
+          matchSh = isDirect ? userMatchOverride.sh : userMatchOverride.sa;
+          matchSa = isDirect ? userMatchOverride.sa : userMatchOverride.sh;
+          penH = isDirect ? userMatchOverride.penH : userMatchOverride.penA;
+          penA = isDirect ? userMatchOverride.penA : userMatchOverride.penH;
+        } else {
+          const { sh: simH, sa: simA } = simMatchGoals(h?.opp, h?.att, a?.def, a?.opp, a?.att, h?.def);
+          matchSh = isVuelta ? simA : simH;
+          matchSa = isVuelta ? simH : simA;
+        }
 
         const isDraw = (isChampions && isVuelta && phase !== 'Final' && phase !== 'TercerPuesto')
           ? ((m.sh || 0) + matchSh === (m.sa || 0) + matchSa)
           : (matchSh === matchSa);
 
-        if (isDraw && (!isChampions || isVuelta || phase === 'Final' || phase === 'TercerPuesto')) {
+        if (!isUserMatch && isDraw && (!isChampions || isVuelta || phase === 'Final' || phase === 'TercerPuesto')) {
           const penShootout = simPenaltyShootout(h?.att || 1, a?.def || 1, a?.att || 1, h?.def || 1);
           penH = isVuelta ? penShootout.scoreA : penShootout.scoreH;
           penA = isVuelta ? penShootout.scoreH : penShootout.scoreA;
@@ -4686,7 +4851,7 @@ function DiceFootballApp() {
           m.sh = matchSh;
           m.sa = matchSa;
         }
-        if (penH !== null) {
+        if (penH !== null && penH !== undefined) {
           m.penH = penH;
           m.penA = penA;
         }
