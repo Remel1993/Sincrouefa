@@ -19,8 +19,8 @@ import {
 import {
   isChampionsWeek, isEuropaLeagueWeek, getNextChampionsWeek, getNextEuropaLeagueWeek,
   isChampionsDrawWeek, isChampionsMatchWeek, isEuropaLeagueDrawWeek, isEuropaLeagueMatchWeek,
-  getNextEuropaLeagueMatchWeek, getExpectedCupMatchdayForWeek, getLeagueMatchdayForWeek,
-  getSemanaCalendario
+  getNextEuropaLeagueMatchWeek, getExpectedCupMatchdayForWeek, getLatestExpectedCupMatchdayUpToWeek,
+  getLeagueMatchdayForWeek, getSemanaCalendario
 } from '../lib/seasonCalendar';
 import { TrainingModal } from './TrainingModal';
 import { TrainingDrillModal } from './TrainingDrillModal';
@@ -549,9 +549,19 @@ export const CareerView = ({
 
   const isClAlive = isClQualified && !clInfo?.notQualified && !!clInfo?.alive && !clInfo?.eliminated && !clComp?.showWinner && clComp?.phase !== 'Terminado' && !clInfo?.champion;
   const expClMd = getExpectedCupMatchdayForWeek('C1', careerCurrentWeek) ?? 99;
-  const isClPending = careerCurrentWeek < 40 && hasChampionsThisWeek && isClAlive && ((clComp?.matchday || 0) < expClMd);
+  const latestExpClMd = getLatestExpectedCupMatchdayUpToWeek('C1', careerCurrentWeek);
+  const isClPending = careerCurrentWeek <= 42 && isClAlive && (
+    (hasChampionsThisWeek && ((clComp?.matchday || 0) < expClMd)) ||
+    ((clComp?.matchday || 0) < latestExpClMd)
+  );
 
-  const isUelPending = careerCurrentWeek < 40 && hasEuropaThisWeek && isUelAlive && isRoundChronologicallyEligible && isUelPendingThisWeek;
+  const latestExpUelMd = getLatestExpectedCupMatchdayUpToWeek('C3', careerCurrentWeek);
+  const isUelPending = careerCurrentWeek <= 42 && isUelAlive && isRoundChronologicallyEligible && (
+    (hasEuropaThisWeek && isUelPendingThisWeek) ||
+    ((uelMd || 0) < latestExpUelMd)
+  );
+
+  const hasPendingEuropeanMatch = isClPending || isUelPending;
 
   const expLeagueMd = getLeagueMatchdayForWeek(careerCurrentWeek);
   const careerLeagueMd = (career.div === 2 ? comp?.matchday2 : comp?.matchday) || 0;
@@ -1894,7 +1904,7 @@ export const CareerView = ({
                           onClick={onSimulateChampionsMatch}
                           className='bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white py-3.5 rounded-2xl text-[10px] font-black uppercase italic tracking-widest active:scale-95 transition-all flex items-center justify-center gap-1.5 border border-white/10 cursor-pointer'
                         >
-                          <FastForward size={14} className='text-blue-400' /> {isLeaguePending ? 'Simular Todo (Liga + UCL)' : 'Simular Partido'}
+                          <FastForward size={14} className='text-blue-400' /> Simular UCL
                         </button>
                         <button
                           onClick={() => setTab('cl')}
@@ -1955,7 +1965,7 @@ export const CareerView = ({
                           onClick={onSimulateUelMatch}
                           className='bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white py-3.5 rounded-2xl text-[10px] font-black uppercase italic tracking-widest active:scale-95 transition-all flex items-center justify-center gap-1.5 border border-white/10 cursor-pointer'
                         >
-                          <FastForward size={14} className='text-amber-400' /> {isLeaguePending ? 'Simular Todo (Liga + UEL)' : 'Simular Partido'}
+                          <FastForward size={14} className='text-amber-400' /> Simular UEL
                         </button>
                         <button
                           onClick={() => setTab('uel')}
@@ -1978,6 +1988,24 @@ export const CareerView = ({
                           Semana {currentWeekInfo.week} de {currentWeekInfo.totalWeeks || (totalRoundsCount + 5)}
                         </span>
                       </div>
+
+                      {hasPendingEuropeanMatch && (
+                        <div className='mb-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3 flex items-start gap-2.5'>
+                          <div className='w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0 mt-0.5'>
+                            <Lock size={13} />
+                          </div>
+                          <div className='text-left'>
+                            <p className='text-[8.5px] font-black uppercase tracking-wider text-amber-300'>
+                              Compromiso de Liga en Espera
+                            </p>
+                            <p className='text-[8px] font-semibold text-slate-300 leading-snug'>
+                              {isClPending
+                                ? 'Debes disputar o resolver primero tu partido oficial de UEFA Champions League para que prosiga la liga.'
+                                : 'Debes disputar o resolver primero tu partido oficial de UEFA Europa League para que prosiga la liga.'}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                       <div className='flex items-center justify-between mt-4'>
                         <div className='flex-1 text-center'>
                           <div className='relative inline-block'>
@@ -2072,20 +2100,36 @@ export const CareerView = ({
                         </div>
                       </div>
 
-                      <div className='grid grid-cols-2 gap-2 mt-4'>
-                        <button
-                          onClick={onPlayMatch}
-                          className='bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-slate-950 py-3.5 rounded-2xl text-[10px] font-black uppercase italic tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer'
-                        >
-                          <Swords size={15} /> Jugar Partido
-                        </button>
-                        <button
-                          onClick={onSimulateMatch}
-                          className='bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-3.5 rounded-2xl text-[10px] font-black uppercase italic tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-1.5 border border-blue-400/30 cursor-pointer'
-                        >
-                          <FastForward size={15} /> {totalPendingMatchesThisWeek > 1 ? 'Simular Todo (Simultáneo)' : 'Simular Partido'}
-                        </button>
-                      </div>
+                      {hasPendingEuropeanMatch ? (
+                        <div className='mt-4 space-y-2'>
+                          <div className='w-full py-3 px-4 rounded-2xl bg-slate-900/80 border border-amber-500/30 text-amber-300/90 text-center flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-wider shadow-inner'>
+                            <Lock size={14} className='text-amber-400 shrink-0' />
+                            <span>Jornada de Liga en Pausa · Resuelve antes tu partido continental</span>
+                          </div>
+                          <button
+                            onClick={isClPending ? onPlayChampionsMatch : (onPlayUelMatch || onOpenUel)}
+                            className='w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-500 text-white py-3.5 rounded-2xl text-[10px] font-black uppercase italic tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer border border-blue-400/40'
+                          >
+                            <Swords size={15} className='text-amber-300' />
+                            <span>Ir al Partido de {isClPending ? 'Champions League' : 'Europa League'}</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className='grid grid-cols-2 gap-2 mt-4'>
+                          <button
+                            onClick={onPlayMatch}
+                            className='bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-slate-950 py-3.5 rounded-2xl text-[10px] font-black uppercase italic tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer'
+                          >
+                            <Swords size={15} /> Jugar Partido
+                          </button>
+                          <button
+                            onClick={onSimulateMatch}
+                            className='bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-3.5 rounded-2xl text-[10px] font-black uppercase italic tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-1.5 border border-blue-400/30 cursor-pointer'
+                          >
+                            <FastForward size={15} /> Simular Partido
+                          </button>
+                        </div>
+                      )}
                     </Panel>
                   )}
                 </div>
