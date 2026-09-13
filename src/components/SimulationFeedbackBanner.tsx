@@ -57,6 +57,11 @@ export interface SimulationFeedback {
   immunityWeeks?: number;
   leagueMatch?: {
     rivalName?: string;
+    homeName?: string;
+    awayName?: string;
+    scoreH?: number;
+    scoreA?: number;
+    isHome?: boolean;
     myGf?: number;
     myGa?: number;
     result?: string;
@@ -67,6 +72,11 @@ export interface SimulationFeedback {
   };
   clMatch?: {
     rivalName?: string;
+    homeName?: string;
+    awayName?: string;
+    scoreH?: number;
+    scoreA?: number;
+    isHome?: boolean;
     myGf?: number;
     myGa?: number;
     result?: string;
@@ -76,6 +86,11 @@ export interface SimulationFeedback {
   };
   uelMatch?: {
     rivalName?: string;
+    homeName?: string;
+    awayName?: string;
+    scoreH?: number;
+    scoreA?: number;
+    isHome?: boolean;
     myGf?: number;
     myGa?: number;
     result?: string;
@@ -108,6 +123,116 @@ export const SimulationFeedbackBanner: React.FC<SimulationFeedbackBannerProps> =
 
   const targetPos = feedback.targetPos ?? 10;
   const expectedPos = feedback.expectedPos ?? 10;
+
+  // Preparar lista unificada de partidos disputados / simulados (para liga, Champions o Europa League)
+  const matchesToDisplay: any[] = [];
+
+  if (feedback.leagueMatch) {
+    const isHome = feedback.leagueMatch.isHome ?? feedback.isHome ?? true;
+    const rival = feedback.leagueMatch.rivalName || feedback.rivalName || 'Rival';
+    const hName = feedback.leagueMatch.homeName || (isHome ? 'Tu Equipo' : rival);
+    const aName = feedback.leagueMatch.awayName || (isHome ? rival : 'Tu Equipo');
+    const sH = feedback.leagueMatch.scoreH !== undefined ? feedback.leagueMatch.scoreH : (isHome ? (feedback.leagueMatch.myGf ?? 0) : (feedback.leagueMatch.myGa ?? 0));
+    const sA = feedback.leagueMatch.scoreA !== undefined ? feedback.leagueMatch.scoreA : (isHome ? (feedback.leagueMatch.myGa ?? 0) : (feedback.leagueMatch.myGf ?? 0));
+    matchesToDisplay.push({
+      id: 'league',
+      compType: 'league' as const,
+      compTitle: '🏆 Liga Regular',
+      phaseOrDay: feedback.matchday ? `Jornada ${feedback.matchday}` : undefined,
+      homeName: hName,
+      awayName: aName,
+      scoreH: sH,
+      scoreA: sA,
+      isHome,
+      result: feedback.leagueMatch.result || feedback.result || (sH === sA ? 'D' : (isHome ? (sH > sA ? 'W' : 'L') : (sA > sH ? 'W' : 'L'))),
+      posBefore: feedback.leagueMatch.posBefore ?? feedback.posBefore,
+      posAfter: feedback.leagueMatch.posAfter ?? feedback.posAfter,
+      peGained: feedback.leagueMatch.peGained ?? feedback.peDelta ?? feedback.peGained,
+      repGained: feedback.leagueMatch.repGained ?? feedback.repDelta ?? feedback.repGained,
+      theme: 'emerald' as const
+    });
+  }
+
+  if (feedback.clMatch) {
+    const isHome = feedback.clMatch.isHome ?? feedback.isHome ?? true;
+    const rival = feedback.clMatch.rivalName || feedback.rivalName || 'Rival Europeo';
+    const hName = feedback.clMatch.homeName || (isHome ? 'Tu Equipo' : rival);
+    const aName = feedback.clMatch.awayName || (isHome ? rival : 'Tu Equipo');
+    const sH = feedback.clMatch.scoreH !== undefined ? feedback.clMatch.scoreH : (isHome ? (feedback.clMatch.myGf ?? 0) : (feedback.clMatch.myGa ?? 0));
+    const sA = feedback.clMatch.scoreA !== undefined ? feedback.clMatch.scoreA : (isHome ? (feedback.clMatch.myGa ?? 0) : (feedback.clMatch.myGf ?? 0));
+    matchesToDisplay.push({
+      id: 'cl',
+      compType: 'cl' as const,
+      compTitle: '⭐ Champions League',
+      phaseOrDay: feedback.clMatch.phase || feedback.phaseLabel || 'Eliminatoria',
+      homeName: hName,
+      awayName: aName,
+      scoreH: sH,
+      scoreA: sA,
+      isHome,
+      result: feedback.clMatch.result || feedback.result || (sH === sA ? 'D' : (isHome ? (sH > sA ? 'W' : 'L') : (sA > sH ? 'W' : 'L'))),
+      posBefore: undefined,
+      posAfter: undefined,
+      peGained: feedback.clMatch.peGained,
+      repGained: feedback.clMatch.repGained,
+      theme: 'blue' as const
+    });
+  }
+
+  if (feedback.uelMatch) {
+    const isHome = feedback.uelMatch.isHome ?? feedback.isHome ?? true;
+    const rival = feedback.uelMatch.rivalName || feedback.rivalName || 'Rival Europeo';
+    const hName = feedback.uelMatch.homeName || (isHome ? 'Tu Equipo' : rival);
+    const aName = feedback.uelMatch.awayName || (isHome ? rival : 'Tu Equipo');
+    const sH = feedback.uelMatch.scoreH !== undefined ? feedback.uelMatch.scoreH : (isHome ? (feedback.uelMatch.myGf ?? 0) : (feedback.uelMatch.myGa ?? 0));
+    const sA = feedback.uelMatch.scoreA !== undefined ? feedback.uelMatch.scoreA : (isHome ? (feedback.uelMatch.myGa ?? 0) : (feedback.uelMatch.myGf ?? 0));
+    matchesToDisplay.push({
+      id: 'uel',
+      compType: 'uel' as const,
+      compTitle: '🟠 Europa League',
+      phaseOrDay: feedback.uelMatch.phase || feedback.phaseLabel || 'Eliminatoria',
+      homeName: hName,
+      awayName: aName,
+      scoreH: sH,
+      scoreA: sA,
+      isHome,
+      result: feedback.uelMatch.result || feedback.result || (sH === sA ? 'D' : (isHome ? (sH > sA ? 'W' : 'L') : (sA > sH ? 'W' : 'L'))),
+      posBefore: undefined,
+      posAfter: undefined,
+      peGained: feedback.uelMatch.peGained,
+      repGained: feedback.uelMatch.repGained,
+      theme: 'amber' as const
+    });
+  }
+
+  // Fallback si no vinieron objetos anidados de competición pero sí datos directos de un partido individual
+  if (matchesToDisplay.length === 0 && (feedback.rivalName || feedback.homeName || feedback.myGf !== undefined)) {
+    const isCl = Boolean(feedback.isChampions);
+    const isUel = Boolean(feedback.isEuropaLeague || feedback.isUel);
+    const isHome = feedback.isHome ?? true;
+    const rival = feedback.rivalName || 'Rival';
+    const hName = feedback.homeName || (isHome ? 'Tu Equipo' : rival);
+    const aName = feedback.awayName || (isHome ? rival : 'Tu Equipo');
+    const sH = feedback.scoreH !== undefined ? feedback.scoreH : (isHome ? (feedback.myGf ?? 0) : (feedback.myGa ?? 0));
+    const sA = feedback.scoreA !== undefined ? feedback.scoreA : (isHome ? (feedback.myGa ?? 0) : (feedback.myGf ?? 0));
+    matchesToDisplay.push({
+      id: isCl ? 'cl' : isUel ? 'uel' : 'league',
+      compType: isCl ? ('cl' as const) : isUel ? ('uel' as const) : ('league' as const),
+      compTitle: isCl ? '⭐ Champions League' : isUel ? '🟠 Europa League' : '🏆 Liga Regular',
+      phaseOrDay: isCl || isUel ? (feedback.phaseLabel || 'Eliminatoria') : (feedback.matchday ? `Jornada ${feedback.matchday}` : undefined),
+      homeName: hName,
+      awayName: aName,
+      scoreH: sH,
+      scoreA: sA,
+      isHome,
+      result: feedback.result || (sH === sA ? 'D' : (isHome ? (sH > sA ? 'W' : 'L') : (sA > sH ? 'W' : 'L'))),
+      posBefore: feedback.posBefore,
+      posAfter: feedback.posAfter,
+      peGained: feedback.peGained ?? feedback.peDelta,
+      repGained: feedback.repGained ?? feedback.repDelta,
+      theme: isCl ? ('blue' as const) : isUel ? ('amber' as const) : ('emerald' as const)
+    });
+  }
 
   // Evaluación creativa de seguridad en el puesto y confianza de la directiva
   let boardStatus = {
@@ -252,84 +377,107 @@ export const SimulationFeedbackBanner: React.FC<SimulationFeedbackBannerProps> =
         )}
       </div>
 
-      {/* Si es simulación simultánea, mostrar tarjetas de resultados de cada competición */}
-      {feedback.isSimultaneous && (feedback.leagueMatch || feedback.clMatch || feedback.uelMatch) && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-          {feedback.leagueMatch && (
-            <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-xl p-2.5 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[8.5px] font-black uppercase tracking-widest text-emerald-400">Liga Regular</span>
-                <span className={`text-[8.5px] font-black px-1.5 py-0.2 rounded-full uppercase ${
-                  feedback.leagueMatch.result === 'W' ? 'bg-emerald-500/30 text-emerald-300' :
-                  feedback.leagueMatch.result === 'D' ? 'bg-amber-500/30 text-amber-300' :
-                  'bg-rose-500/30 text-rose-300'
-                }`}>
-                  {feedback.leagueMatch.result === 'W' ? 'Victoria' : feedback.leagueMatch.result === 'D' ? 'Empate' : 'Derrota'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-[11px] font-black text-white">
-                <span className="truncate">vs {feedback.leagueMatch.rivalName}</span>
-                <span className="font-mono text-emerald-300 ml-2">{feedback.leagueMatch.myGf} - {feedback.leagueMatch.myGa}</span>
-              </div>
-              {feedback.leagueMatch.posAfter !== undefined && (
-                <p className="text-[9px] text-slate-300 font-bold">
-                  Posición: <span className="text-white font-black">{feedback.leagueMatch.posAfter}º</span>
-                  {feedback.leagueMatch.posBefore !== undefined && feedback.leagueMatch.posBefore !== feedback.leagueMatch.posAfter && (
-                    <span className={feedback.leagueMatch.posBefore > feedback.leagueMatch.posAfter ? ' text-emerald-400 font-black' : ' text-rose-400 font-black'}>
-                      {' '}({feedback.leagueMatch.posBefore > feedback.leagueMatch.posAfter ? '▲ sube desde' : '▼ cae desde'} {feedback.leagueMatch.posBefore}º)
+      {/* Tarjetas de partidos disputados / simulados (fieles tanto en jornada individual como en semana simultánea) */}
+      {matchesToDisplay.length > 0 && (
+        <div className={`grid gap-2 text-xs ${matchesToDisplay.length > 1 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
+          {matchesToDisplay.map((m) => {
+            const isWin = m.result === 'W';
+            const isDraw = m.result === 'D';
+            const themeBorder = m.theme === 'blue'
+              ? 'border-blue-500/30 bg-blue-950/20'
+              : m.theme === 'amber'
+              ? 'border-amber-500/30 bg-amber-950/20'
+              : 'border-emerald-500/30 bg-emerald-950/20';
+
+            const badgeBg = m.theme === 'blue' ? 'text-blue-400' : m.theme === 'amber' ? 'text-amber-400' : 'text-emerald-400';
+
+            return (
+              <div key={m.id} className={`${themeBorder} border rounded-xl p-2.5 space-y-1.5`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className={`text-[8.5px] font-black uppercase tracking-widest ${badgeBg}`}>
+                      {m.compTitle}
+                    </span>
+                    {m.phaseOrDay && (
+                      <span className="text-[8px] font-bold text-slate-400 truncate">
+                        · {m.phaseOrDay}
+                      </span>
+                    )}
+                  </div>
+                  <span className={`text-[8.5px] font-black px-2 py-0.5 rounded-full uppercase shrink-0 ${
+                    isWin ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/40' :
+                    isDraw ? 'bg-amber-500/30 text-amber-300 border border-amber-500/40' :
+                    'bg-rose-500/30 text-rose-300 border border-rose-500/40'
+                  }`}>
+                    {isWin ? 'Victoria' : isDraw ? 'Empate' : 'Derrota'}
+                  </span>
+                </div>
+
+                {/* Marcador fiel: Local vs Visitante */}
+                <div className="bg-black/40 rounded-lg p-2 border border-white/5 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                    <span className={`text-[11px] font-black truncate ${m.isHome ? 'text-amber-300' : 'text-white'}`}>
+                      {m.homeName}
+                    </span>
+                    {m.isHome && (
+                      <span className="text-[7.5px] font-bold text-amber-400/90 uppercase px-1 rounded bg-amber-400/15 shrink-0">
+                        Casa
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="shrink-0 px-2.5 py-0.5 bg-black/60 rounded-md border border-white/10 font-mono text-sm font-black italic tabular-nums tracking-wider text-white">
+                    <span className={m.scoreH > m.scoreA ? 'text-emerald-400' : m.scoreH < m.scoreA ? 'text-rose-400' : 'text-amber-400'}>
+                      {m.scoreH}
+                    </span>
+                    <span className="text-slate-500 mx-1">-</span>
+                    <span className={m.scoreA > m.scoreH ? 'text-emerald-400' : m.scoreA < m.scoreH ? 'text-rose-400' : 'text-amber-400'}>
+                      {m.scoreA}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-1.5 min-w-0 flex-1 text-right">
+                    {!m.isHome && (
+                      <span className="text-[7.5px] font-bold text-amber-400/90 uppercase px-1 rounded bg-amber-400/15 shrink-0">
+                        Fuera
+                      </span>
+                    )}
+                    <span className={`text-[11px] font-black truncate ${!m.isHome ? 'text-amber-300' : 'text-white'}`}>
+                      {m.awayName}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Metadatos adicionales de liga o torneo */}
+                <div className="flex items-center justify-between text-[9px] text-slate-300 font-bold pt-0.5">
+                  {m.posAfter !== undefined ? (
+                    <p className="truncate">
+                      Puesto liga: <span className="text-white font-black">{m.posAfter}º</span>
+                      {m.posBefore !== undefined && m.posBefore !== m.posAfter && (
+                        <span className={m.posBefore > m.posAfter ? ' text-emerald-400 font-black' : ' text-rose-400 font-black'}>
+                          {' '}({m.posBefore > m.posAfter ? '▲ sube desde' : '▼ cae desde'} {m.posBefore}º)
+                        </span>
+                      )}
+                      {m.posBefore !== undefined && m.posBefore === m.posAfter && (
+                        <span className="text-sky-300"> (= mantiene puesto)</span>
+                      )}
+                    </p>
+                  ) : (
+                    <p className="text-slate-400 truncate">
+                      {m.compType === 'cl' ? '⭐ Competición Champions League al día' : '🟠 Competición Europa League al día'}
+                    </p>
+                  )}
+
+                  {(m.peGained !== undefined || m.repGained !== undefined) && (
+                    <span className="text-[8.5px] font-black text-amber-300/90 shrink-0 ml-2">
+                      {m.peGained !== undefined ? `+${m.peGained} PE` : ''}
+                      {m.repGained !== undefined ? ` · ${m.repGained > 0 ? `+${m.repGained}` : m.repGained} Rep` : ''}
                     </span>
                   )}
-                  {feedback.leagueMatch.posBefore !== undefined && feedback.leagueMatch.posBefore === feedback.leagueMatch.posAfter && (
-                    <span className="text-sky-300"> (= mantiene puesto)</span>
-                  )}
-                </p>
-              )}
-            </div>
-          )}
-
-          {feedback.clMatch && (
-            <div className="bg-blue-950/20 border border-blue-500/30 rounded-xl p-2.5 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[8.5px] font-black uppercase tracking-widest text-blue-400">Champions League · {feedback.clMatch.phase || 'Europea'}</span>
-                <span className={`text-[8.5px] font-black px-1.5 py-0.2 rounded-full uppercase ${
-                  feedback.clMatch.result === 'W' ? 'bg-emerald-500/30 text-emerald-300' :
-                  feedback.clMatch.result === 'D' ? 'bg-amber-500/30 text-amber-300' :
-                  'bg-rose-500/30 text-rose-300'
-                }`}>
-                  {feedback.clMatch.result === 'W' ? 'Victoria' : feedback.clMatch.result === 'D' ? 'Empate' : 'Derrota'}
-                </span>
+                </div>
               </div>
-              <div className="flex items-center justify-between text-[11px] font-black text-white">
-                <span className="truncate">vs {feedback.clMatch.rivalName}</span>
-                <span className="font-mono text-blue-300 ml-2">{feedback.clMatch.myGf} - {feedback.clMatch.myGa}</span>
-              </div>
-              <p className="text-[9px] text-blue-300/80 font-bold">
-                Competición continental al día
-              </p>
-            </div>
-          )}
-
-          {feedback.uelMatch && (
-            <div className="bg-amber-950/20 border border-amber-500/30 rounded-xl p-2.5 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[8.5px] font-black uppercase tracking-widest text-amber-400">Europa League · {feedback.uelMatch.phase || 'Eliminatoria'}</span>
-                <span className={`text-[8.5px] font-black px-1.5 py-0.2 rounded-full uppercase ${
-                  feedback.uelMatch.result === 'W' ? 'bg-emerald-500/30 text-emerald-300' :
-                  feedback.uelMatch.result === 'D' ? 'bg-amber-500/30 text-amber-300' :
-                  'bg-rose-500/30 text-rose-300'
-                }`}>
-                  {feedback.uelMatch.result === 'W' ? 'Victoria' : feedback.uelMatch.result === 'D' ? 'Empate' : 'Derrota'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-[11px] font-black text-white">
-                <span className="truncate">vs {feedback.uelMatch.rivalName}</span>
-                <span className="font-mono text-amber-300 ml-2">{feedback.uelMatch.myGf} - {feedback.uelMatch.myGa}</span>
-              </div>
-              <p className="text-[9px] text-amber-300/80 font-bold">
-                Competición continental al día
-              </p>
-            </div>
-          )}
+            );
+          })}
         </div>
       )}
 
