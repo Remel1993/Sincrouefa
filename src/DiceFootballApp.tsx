@@ -1362,6 +1362,38 @@ function DiceFootballApp() {
   }, [comps, career.firstTeamId, career.firstTeamCompId]);
   const careerUi = { Shield, DieIcon, FormBadges, PenaltyDots };
 
+  const currentMatchKey = useMemo(() => {
+    const cl = comps['C1'];
+    const uel = comps['C3'];
+    const currentSeason = seasonState.season || career.clSeason || career.uelSeason || 1;
+    const currentWk = seasonState.currentWeek || 1;
+    const isClWk = isChampionsWeek(currentWk);
+    const isUelWk = isEuropaLeagueWeek(currentWk);
+
+    const c1Member = careerTeam?.name ? (cl?.teams || []).find((t: any) => t.name === careerTeam.name) : null;
+    const isC1Alive = Boolean(c1Member && (
+      cl?.phase === 'groups' ||
+      (Array.isArray(cl?.bracket?.[cl?.phase])
+        ? cl.bracket[cl.phase].some((m: any) => m && (m.hId === c1Member.id || m.aId === c1Member.id))
+        : false)
+    ));
+
+    const c3Member = careerTeam?.name ? (uel?.teams || []).find((t: any) => t.name === careerTeam.name) : null;
+    const isC3Alive = Boolean(c3Member && (
+      Array.isArray(uel?.bracket?.[uel?.phase || 'Dieciseisavos'])
+        ? uel.bracket[uel.phase || 'Dieciseisavos'].some((m: any) => m && (m.hId === c3Member.id || m.aId === c3Member.id))
+        : false
+    ));
+
+    if (isC1Alive && (isClWk || seasonState.phase === 'champions') && cl?.teams?.length && cl.phase && cl.phase !== 'Terminado') {
+      return getChampionsMatchKey(currentSeason, cl.phase || 'groups', cl.matchday || 0);
+    }
+    if (isC3Alive && (isUelWk || seasonState.phase === 'europa') && uel?.teams?.length && uel.phase && uel.phase !== 'Terminado') {
+      return getEuropaLeagueMatchKey(currentSeason, uel.phase || 'Dieciseisavos', uel.matchday || 0);
+    }
+    return `league-${currentSeason}-${career.div || 1}-${careerMd}`;
+  }, [seasonState.phase, seasonState.season, seasonState.currentWeek, comps, career.div, career.clSeason, career.uelSeason, careerMd, careerTeam?.name]);
+
   // RESTAURACIÓN Y PROTECCIÓN DE ESTADÍSTICAS DEL EQUIPO (Estadísticas originales + mejoras de P/E)
   useEffect(() => {
     if (!career.active || !career.teamId || !careerTeam || career.fired) return;
@@ -1373,7 +1405,10 @@ function DiceFootballApp() {
       def: Math.max(career.baseDist?.def || 1, careerTeam.def || 1)
     };
 
-    const hasValidInjury = career.activeInjury && career.activeInjury.matchday === careerMd;
+    const hasValidInjury = career.activeInjury && (
+      career.activeInjury.matchday === careerMd ||
+      (career.activeInjury.matchKey && career.activeInjury.matchKey === currentMatchKey)
+    );
 
     // Si las stats en comps difieren de base (mejoras de PE), sincronizar comps
     if (careerTeam.att !== base.att || careerTeam.opp !== base.opp || careerTeam.def !== base.def) {
@@ -1394,7 +1429,10 @@ function DiceFootballApp() {
 
     if (!career.baseDist || (career.activeInjury && !hasValidInjury) || career.baseDist.att !== base.att || career.baseDist.opp !== base.opp || career.baseDist.def !== base.def) {
       setCareer(c => {
-        const validInjury = c.activeInjury && c.activeInjury.matchday === careerMd;
+        const validInjury = c.activeInjury && (
+          c.activeInjury.matchday === careerMd ||
+          (c.activeInjury.matchKey && c.activeInjury.matchKey === currentMatchKey)
+        );
         return {
           ...c,
           baseDist: base,
@@ -1403,7 +1441,7 @@ function DiceFootballApp() {
         };
       });
     }
-  }, [career.active, career.teamId, career.compId, career.div, careerMd, careerTeam, career.fired]);
+  }, [career.active, career.teamId, career.compId, career.div, careerMd, careerTeam, career.fired, currentMatchKey]);
 
   // Garantizar ofertas de rescate activas si el mánager está despedido y no tiene ofertas en su buzón
   useEffect(() => {
@@ -1760,23 +1798,6 @@ function DiceFootballApp() {
       tactic: { att: newStats.att, opp: newStats.opp, def: newStats.def }
     }));
   };
-
-  const currentMatchKey = useMemo(() => {
-    const cl = comps['C1'];
-    const uel = comps['C3'];
-    const currentSeason = seasonState.season || career.clSeason || career.uelSeason || 1;
-    const currentWk = seasonState.currentWeek || 1;
-    const isClWk = isChampionsWeek(currentWk);
-    const isUelWk = isEuropaLeagueWeek(currentWk);
-
-    if ((isClWk || seasonState.phase === 'champions') && cl?.teams?.length && cl.phase && cl.phase !== 'Terminado') {
-      return getChampionsMatchKey(currentSeason, cl.phase || 'groups', cl.matchday || 0);
-    }
-    if ((isUelWk || seasonState.phase === 'europa') && uel?.teams?.length && uel.phase && uel.phase !== 'Terminado') {
-      return getEuropaLeagueMatchKey(currentSeason, uel.phase || 'Dieciseisavos', uel.matchday || 0);
-    }
-    return `league-${currentSeason}-${career.div || 1}-${careerMd}`;
-  }, [seasonState.phase, seasonState.season, seasonState.currentWeek, comps, career.div, career.clSeason, career.uelSeason, careerMd]);
 
   const applyDrillResult = (result) => {
     if (!careerTeam) return;
@@ -2294,6 +2315,7 @@ function DiceFootballApp() {
         reputation: newRep,
         medicalImmunityWeeks: finalImmunity,
         trainedMatchday: careerMd,
+        trainedMatchKey: currentMatchKey,
         lastTrainingResult: effectiveTraining || c.lastTrainingResult,
         // ALTA MÉDICA AUTOMÁTICA: El equipo se recupera totalmente para el próximo partido
         activeInjury: null,
@@ -3280,17 +3302,11 @@ function DiceFootballApp() {
    * manda al técnico a jugarla con el motor de dados de siempre.
    */
   const clComp = comps['C1'];
+  // Siempre resolver el equipo en Champions según el club que actualmente entrena el mánager
   const careerClTeam = useMemo(() => {
-    if (!careerTeam || !clComp?.teams?.length) return null;
-    const isQual = Boolean(
-      career.clQualified ||
-      (clComp.careerTeamId && clComp.careerTeamId === career.teamId) ||
-      (clComp.careerTeamName && careerTeam.name && clComp.careerTeamName === careerTeam.name)
-    );
-    if (!isQual) return null;
-    return clComp.teams.find(t => t.id === clComp.careerTeamId) ||
-      clComp.teams.find(t => t.name === (clComp.careerTeamName || careerTeam.name)) || null;
-  }, [clComp, careerTeam, career.clQualified, career.teamId]);
+    if (!careerTeam?.name || !clComp?.teams?.length) return null;
+    return clComp.teams.find((t: any) => t.name === careerTeam.name) || null;
+  }, [clComp?.teams, careerTeam?.name]);
 
   const careerClWinnerId = useMemo(() => {
     const final = clComp?.bracket?.Final?.[0] || clComp?.bracket?.Final;
@@ -3353,18 +3369,11 @@ function DiceFootballApp() {
   }, [clComp, careerClTeam, careerClAlive, careerClWinnerId, seasonState.phase, seasonState.season]);
 
   const uelComp = comps['C3'];
+  // Siempre resolver el equipo en Europa League según el club que actualmente entrena el mánager
   const careerUelTeam = useMemo(() => {
-    if (!uelComp?.teams?.length || !careerTeam) return null;
-    const isQual = Boolean(
-      career.uelQualified ||
-      (uelComp.careerTeamId && uelComp.careerTeamId === career.teamId) ||
-      (uelComp.careerTeamName && careerTeam.name && uelComp.careerTeamName === careerTeam.name)
-    );
-    if (!isQual) return null;
-    return uelComp.teams.find((t: any) => t.id === uelComp.careerTeamId) ||
-      uelComp.teams.find((t: any) => t.name === (uelComp.careerTeamName || careerTeam.name)) ||
-      uelComp.teams.find((t: any) => t.id === uelComp.userTeamId) || null;
-  }, [uelComp, careerTeam, career.uelQualified, career.teamId]);
+    if (!uelComp?.teams?.length || !careerTeam?.name) return null;
+    return uelComp.teams.find((t: any) => t.name === careerTeam.name) || null;
+  }, [uelComp?.teams, careerTeam?.name]);
 
   const careerUelWinnerId = useMemo(() => {
     if (!uelComp) return null;
@@ -3422,6 +3431,61 @@ function DiceFootballApp() {
     };
   }, [uelComp, careerUelTeam, careerUelAlive, careerUelWinnerId, seasonState.season]);
 
+  // Guardián reactivo: garantiza sincronización absoluta de competiciones europeas (C1 y C3)
+  // con el equipo que el mánager entrena en todo momento, evitando mostrar datos del club anterior al cambiar de contrato
+  useEffect(() => {
+    if (!career.active || !careerTeam?.name) return;
+
+    setComps(prev => {
+      let modified = false;
+      const next = { ...prev };
+
+      // Sincronizar C1 (Champions)
+      if (next['C1']?.teams?.length) {
+        const clMember = next['C1'].teams.find((t: any) => t.name === careerTeam.name);
+        const targetClId = clMember ? clMember.id : null;
+        const targetClName = clMember ? clMember.name : null;
+        if (next['C1'].careerTeamId !== targetClId || next['C1'].careerTeamName !== targetClName || next['C1'].userTeamId !== targetClId) {
+          next['C1'] = {
+            ...next['C1'],
+            careerTeamId: targetClId,
+            careerTeamName: targetClName,
+            userTeamId: targetClId
+          };
+          modified = true;
+        }
+      }
+
+      // Sincronizar C3 (Europa League)
+      if (next['C3']?.teams?.length) {
+        const uelMember = next['C3'].teams.find((t: any) => t.name === careerTeam.name);
+        const targetUelId = uelMember ? uelMember.id : null;
+        const targetUelName = uelMember ? uelMember.name : null;
+        if (next['C3'].careerTeamId !== targetUelId || next['C3'].careerTeamName !== targetUelName || next['C3'].userTeamId !== targetUelId) {
+          next['C3'] = {
+            ...next['C3'],
+            careerTeamId: targetUelId,
+            careerTeamName: targetUelName,
+            userTeamId: targetUelId
+          };
+          modified = true;
+        }
+      }
+
+      return modified ? next : prev;
+    });
+
+    const inC1 = Boolean(comps['C1']?.teams?.some((t: any) => t.name === careerTeam.name));
+    const inC3 = Boolean(comps['C3']?.teams?.some((t: any) => t.name === careerTeam.name));
+    if (career.clQualified !== inC1 || career.uelQualified !== inC3) {
+      setCareer(c => ({
+        ...c,
+        clQualified: inC1,
+        uelQualified: inC3
+      }));
+    }
+  }, [career.active, careerTeam?.name, comps['C1']?.teams, comps['C3']?.teams]);
+
   // Inicializa o sortea la Champions League sin alterar ni terminar las ligas en juego
   const initOrDrawChampions = (forceDraw = false) => {
     const seasonNow = seasonState.season || 1;
@@ -3429,8 +3493,22 @@ function DiceFootballApp() {
       const next = { ...prev };
       let c1 = next['C1'];
 
-      // Si ya está sorteada y no se solicita un nuevo sorteo forzado, no reiniciar
+      // Si ya está sorteada y no se solicita un nuevo sorteo forzado, sincronizar el club activo si cambió
       if (c1?.teams?.length && !forceDraw) {
+        if (career.active && careerTeam?.name) {
+          const mine = c1.teams.find((t: any) => t.name === careerTeam.name);
+          const targetId = mine ? mine.id : null;
+          const targetName = mine ? mine.name : null;
+          if (c1.careerTeamId !== targetId || c1.careerTeamName !== targetName || c1.userTeamId !== targetId) {
+            next['C1'] = {
+              ...c1,
+              careerTeamId: targetId,
+              careerTeamName: targetName,
+              userTeamId: targetId
+            };
+            return next;
+          }
+        }
         return prev;
       }
 
@@ -3632,10 +3710,7 @@ function DiceFootballApp() {
 
     if (!clComp?.teams?.length || !careerTeam) return;
 
-    const careerClTeam = clComp.teams.find(t => t.id === clComp.careerTeamId) ||
-      clComp.teams.find(t => t.name === (clComp.careerTeamName || careerTeam.name)) ||
-      clComp.teams.find(t => t.id === clComp.userTeamId) ||
-      clComp.teams.find(t => t.id === career.teamId);
+    const careerClTeam = clComp.teams.find(t => t.name === careerTeam.name);
     if (!careerClTeam) return;
 
     const phase = clComp.phase || 'groups';
@@ -3773,8 +3848,7 @@ function DiceFootballApp() {
       return;
     }
 
-    const careerClTeam = clComp.teams.find(t => t.id === clComp.careerTeamId) ||
-      clComp.teams.find(t => t.name === (clComp.careerTeamName || careerTeam.name));
+    const careerClTeam = clComp.teams.find(t => t.name === careerTeam.name);
 
     const activeHome = simulatedTeams?.home || matchState?.home;
     const activeAway = simulatedTeams?.away || matchState?.away;
@@ -4005,8 +4079,7 @@ function DiceFootballApp() {
     let clComp = comps['C1'];
     if (!clComp?.teams?.length || !careerTeam) return;
 
-    const careerClTeam = clComp.teams.find(t => t.id === clComp.careerTeamId) ||
-      clComp.teams.find(t => t.name === (clComp.careerTeamName || careerTeam.name));
+    const careerClTeam = clComp.teams.find(t => t.name === careerTeam.name);
     if (!careerClTeam) return;
 
     const phase = clComp.phase || 'groups';
@@ -4222,10 +4295,7 @@ function DiceFootballApp() {
 
     if (!uelComp?.teams?.length || !careerTeam) return;
 
-    const careerUelTeam = uelComp.teams.find(t => t.id === uelComp.careerTeamId) ||
-      uelComp.teams.find(t => t.name === (uelComp.careerTeamName || careerTeam.name)) ||
-      uelComp.teams.find(t => t.id === uelComp.userTeamId) ||
-      uelComp.teams.find(t => t.id === career.teamId);
+    const careerUelTeam = uelComp.teams.find(t => t.name === careerTeam.name);
     if (!careerUelTeam) return;
 
     const phase = uelComp.phase || 'Dieciseisavos';
@@ -4333,9 +4403,7 @@ function DiceFootballApp() {
       return;
     }
 
-    const careerUelTeam = uelComp.teams.find(t => t.id === uelComp.careerTeamId) ||
-      uelComp.teams.find(t => t.name === (uelComp.careerTeamName || careerTeam.name)) ||
-      uelComp.teams.find(t => t.id === uelComp.userTeamId);
+    const careerUelTeam = uelComp.teams.find(t => t.name === careerTeam.name);
 
     const activeHome = simulatedTeams?.home || matchState?.home;
     const activeAway = simulatedTeams?.away || matchState?.away;
@@ -4566,9 +4634,7 @@ function DiceFootballApp() {
     }
     if (!uelComp?.teams?.length || !careerTeam) return;
 
-    const careerUelTeam = uelComp.teams.find(t => t.id === uelComp.careerTeamId) ||
-      uelComp.teams.find(t => t.name === (uelComp.careerTeamName || careerTeam.name)) ||
-      uelComp.teams.find(t => t.id === uelComp.userTeamId);
+    const careerUelTeam = uelComp.teams.find(t => t.name === careerTeam.name);
     if (!careerUelTeam) return;
 
     const phase = uelComp.phase || 'Dieciseisavos';
@@ -5295,14 +5361,55 @@ function DiceFootballApp() {
   // Firmar por un club nuevo: contrato limpio, sin rastro del despido anterior.
   // La reputación viaja contigo y da un plus si el club es mayor.
   // El club previo recupera sus estadísticas de fuerza originales.
-  const acceptCareerOffer = (offer) => {
-    // Si el entrenador cambia de club, el club que entrenaba recupera sus estadísticas de fuerza originales
-    if (career.originalTeamStats || careerTeam) {
-      setComps(prev => restoreClubOriginalStatsInComps(prev, career.originalTeamStats, careerTeam?.name));
-    }
-
+  const acceptCareerOffer = (offer: any) => {
     const teams = offer.div === 2 ? comps[offer.compId]?.teams2 : comps[offer.compId]?.teams;
-    const team = (teams || []).find(t => t.id === offer.teamId);
+    const team = (teams || []).find((t: any) => t.id === offer.teamId || t.name === offer.teamName);
+    const newTeamName = team?.name || offer.teamName;
+
+    // Si el entrenador cambia de club, el club previo recupera sus estadísticas de fuerza originales
+    // y se sincronizan de inmediato Champions League ('C1') y Europa League ('C3') con el nuevo club
+    setComps(prev => {
+      let next = (career.originalTeamStats || careerTeam)
+        ? restoreClubOriginalStatsInComps(prev, career.originalTeamStats, careerTeam?.name)
+        : { ...prev };
+
+      // Sincronizar Champions League ('C1') con el nuevo equipo
+      if (next['C1']?.teams?.length) {
+        const clMember = next['C1'].teams.find((t: any) => t.name === newTeamName);
+        next['C1'] = {
+          ...next['C1'],
+          careerTeamId: clMember ? clMember.id : null,
+          careerTeamName: clMember ? clMember.name : null,
+          userTeamId: clMember ? clMember.id : null
+        };
+      }
+
+      // Sincronizar Europa League ('C3') con el nuevo equipo
+      if (next['C3']?.teams?.length) {
+        const uelMember = next['C3'].teams.find((t: any) => t.name === newTeamName);
+        next['C3'] = {
+          ...next['C3'],
+          careerTeamId: uelMember ? uelMember.id : null,
+          careerTeamName: uelMember ? uelMember.name : null,
+          userTeamId: uelMember ? uelMember.id : null
+        };
+      }
+
+      // Sincronizar la liga del nuevo club para que la vista de competición apunte al club firmado
+      if (next[offer.compId]) {
+        if (offer.div === 2) {
+          next[offer.compId] = { ...next[offer.compId], userTeamId2: offer.teamId };
+        } else {
+          next[offer.compId] = { ...next[offer.compId], userTeamId: offer.teamId };
+        }
+      }
+
+      return next;
+    });
+
+    const isClQualified = Boolean(comps['C1']?.teams?.some((t: any) => t.name === newTeamName));
+    const isUelQualified = Boolean(comps['C3']?.teams?.some((t: any) => t.name === newTeamName));
+
     const season = seasonState.season || 1;
     const bonus = signingRepBonus({
       fromTier: career.tier || 1,
@@ -5314,12 +5421,18 @@ function DiceFootballApp() {
       ...c,
       active: true,
       compId: offer.compId, div: offer.div, teamId: offer.teamId,
+      teamName: newTeamName,
       tier: offer.tier, pe: 0, fired: false, offers: [], seasonLog: [],
       activeApplication: null,
       pendingAppResolutionModal: null,
       transferredInSeason: season,
       reputation: clampRep(c.reputation + bonus),
       signingBonus: bonus,
+      clQualified: isClQualified,
+      uelQualified: isUelQualified,
+      clChampion: false,
+      uelChampion: false,
+      stats: { played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0 },
       clQualifiedFor: null, badStreak: 0,
       contractStart: season + 1,
       contractSeasons: CONTRACT_SEASONS,
@@ -5327,6 +5440,8 @@ function DiceFootballApp() {
       lastProcessedSeason: c.lastProcessedSeason,
       medicalImmunityWeeks: 0,
       trainedMatchday: -1,
+      trainedMatchKey: null,
+      trainedUelMatchKey: null,
       completedOfficeWeeks: [],
       activeInjury: null,
       lastSimulationFeedback: null,
@@ -5551,7 +5666,7 @@ function DiceFootballApp() {
   };
 
   // Si la temporada del club acabó, el balance se ofrece una sola vez por temporada.
-  // Si el club está clasificado para la Champions global, el balance espera a que
+  // Si el club está disputando Champions o Europa League, el balance espera a que
   // su recorrido europeo esté resuelto para que cuente en la valoración.
   useEffect(() => {
     if (!career.active || !careerTeam) return;
@@ -5559,11 +5674,16 @@ function DiceFootballApp() {
     if (career.lastProcessedSeason === (seasonState.season || 1)) return;
     if (career.signedForSeason === (seasonState.season || 1)) return;
     if (view !== 'career') return;
-    const playsCl = career.clQualifiedFor === (seasonState.season || 1) || !!careerClInfo;
+
+    const playsCl = (career.clQualifiedFor === (seasonState.season || 1) || Boolean(careerClInfo && !careerClInfo.notQualified)) && careerClInfo?.alive;
+    const playsUel = Boolean(careerUelInfo && !careerUelInfo.notQualified) && careerUelInfo?.alive;
+
     if (playsCl && !(careerClInfo?.champion || careerClInfo?.eliminated)) return;
+    if (playsUel && !(careerUelInfo?.champion || careerUelInfo?.eliminated)) return;
+
     openCareerReview();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [career.active, careerDivisionFinished, seasonState.season, view, careerClInfo]);
+  }, [career.active, careerDivisionFinished, seasonState.season, view, careerClInfo, careerUelInfo]);
 
 
   // El club puede ascender o descender de división: la carrera sigue al equipo
@@ -5594,8 +5714,16 @@ function DiceFootballApp() {
       div: otherDiv,
       tier: tierOf(moved),
       seasonLog: [],
-      baseDist: { att: moved.att, opp: moved.opp, def: moved.def },
-      tactic: { att: moved.att, opp: moved.opp, def: moved.def }
+      baseDist: {
+        att: Math.max(c.baseDist?.att || 1, moved.att),
+        opp: Math.max(c.baseDist?.opp || 1, moved.opp),
+        def: Math.max(c.baseDist?.def || 1, moved.def)
+      },
+      tactic: {
+        att: Math.max(c.tactic?.att || 1, moved.att),
+        opp: Math.max(c.tactic?.opp || 1, moved.opp),
+        def: Math.max(c.tactic?.def || 1, moved.def)
+      }
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comps, career.active, career.compId, career.div, career.teamId]);
@@ -6192,8 +6320,25 @@ function DiceFootballApp() {
       return [...currentTeams].sort((a, b) => ((b.pts || 0) - (a.pts || 0)) || (((b.gf || 0) - (b.ga || 0)) - ((a.gf || 0) - (a.ga || 0))));
     }, [currentTeams]);
 
-    const currentUserTeamId = isDiv2 ? (activeComp.userTeamId2 || activeComp.teams2?.[0]?.id) : activeComp.userTeamId;
-    const userTeam = (currentTeams && currentTeams.length > 0) ? (currentTeams.find(t => t.id === currentUserTeamId) || currentTeams[0]) : null;
+    const resolvedCareerCompTeamId = useMemo(() => {
+      if (!career.active || !careerTeam?.name) return null;
+      if (activeCompId === career.compId) {
+        if (isDiv2 && career.div === 2) return career.teamId;
+        if (!isDiv2 && career.div === 1) return career.teamId;
+      }
+      if (activeCompId === 'C1') {
+        const found = activeComp?.teams?.find((t: any) => t.name === careerTeam.name);
+        return found ? found.id : null;
+      }
+      if (activeCompId === 'C3') {
+        const found = activeComp?.teams?.find((t: any) => t.name === careerTeam.name);
+        return found ? found.id : null;
+      }
+      return null;
+    }, [isDiv2]);
+
+    const currentUserTeamId = resolvedCareerCompTeamId ?? (isDiv2 ? (activeComp.userTeamId2 || activeComp.teams2?.[0]?.id) : activeComp.userTeamId);
+    const userTeam = (currentTeams && currentTeams.length > 0) ? (currentTeams.find(t => t.id === currentUserTeamId) || (career.active ? null : currentTeams[0])) : null;
 
     const winner = useMemo(() => {
       if (!currentTeams || currentTeams.length === 0) return null;
