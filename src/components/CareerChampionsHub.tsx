@@ -53,11 +53,11 @@ export const CareerChampionsHub: React.FC<CareerChampionsHubProps> = ({
   const [bracketRoundFilter, setBracketRoundFilter] = useState<'ALL' | string>('ALL');
 
   // Identificar el equipo del modo carrera dentro de la Champions (C1)
+  // Siempre se vincula al equipo que actualmente entrena el mánager para evitar desincronizaciones al cambiar de club
   const careerClTeam = useMemo(() => {
-    if (!clComp?.teams?.length || !team) return null;
-    return clComp.teams.find((t: any) => t.id === clComp.careerTeamId) ||
-      clComp.teams.find((t: any) => t.name === (clComp.careerTeamName || team.name)) || null;
-  }, [clComp, team]);
+    if (!clComp?.teams?.length || !team?.name) return null;
+    return clComp.teams.find((t: any) => t.name === team.name) || null;
+  }, [clComp?.teams, team?.name]);
 
   const phase = clComp?.phase || 'groups';
   const matchday = clComp?.matchday || 0;
@@ -95,7 +95,7 @@ export const CareerChampionsHub: React.FC<CareerChampionsHubProps> = ({
   // Buscar el grupo del usuario
   const userGroup = useMemo(() => {
     if (!clComp?.groups || !careerClTeam) return null;
-    return clComp.groups.find((g: any) => g.teamIds?.includes(careerClTeam.id)) || clComp.groups[0] || null;
+    return clComp.groups.find((g: any) => g.teamIds?.some((id: any) => String(id) === String(careerClTeam.id))) || null;
   }, [clComp, careerClTeam]);
 
   // Si no se ha seleccionado grupo manualmente, mostrar por defecto el grupo del usuario
@@ -107,12 +107,10 @@ export const CareerChampionsHub: React.FC<CareerChampionsHubProps> = ({
   }, [selectedGroupIdx, userGroup, clComp]);
 
   // Determinar si el club no clasificó a Champions esta temporada
+  // Si el club que entrena el usuario no está entre los participantes de C1, no está clasificado
   const isNotQualified = useMemo(() => {
-    if (careerClTeam) return false;
-    if (career.clQualified) return false;
-    if (clInfo && !clInfo.notQualified) return false;
-    return true;
-  }, [careerClTeam, career.clQualified, clInfo]);
+    return !careerClTeam;
+  }, [careerClTeam]);
 
   // Encontrar el último partido jugado por el usuario en Champions League (cronológicamente el más reciente)
   const lastPlayedChampionsMatch = useMemo(() => {
@@ -254,11 +252,11 @@ export const CareerChampionsHub: React.FC<CareerChampionsHubProps> = ({
       const schedule = generateLeagueSchedule(groupTeams, true);
       const roundIdx = matchday % 6;
       const currentRound = schedule[roundIdx] || [];
-      const match = currentRound.find((m: any) => m.homeId === careerClTeam.id || m.awayId === careerClTeam.id);
+      const match = currentRound.find((m: any) => String(m.homeId) === String(careerClTeam.id) || String(m.awayId) === String(careerClTeam.id));
       if (match) {
-        const rawHome = clComp.teams.find((t: any) => t.id === match.homeId);
-        const rawAway = clComp.teams.find((t: any) => t.id === match.awayId);
-        const isHome = match.homeId === careerClTeam.id;
+        const rawHome = clComp.teams.find((t: any) => String(t.id) === String(match.homeId));
+        const rawAway = clComp.teams.find((t: any) => String(t.id) === String(match.awayId));
+        const isHome = String(match.homeId) === String(careerClTeam.id);
         const rival = isHome ? rawAway : rawHome;
         return {
           match,
@@ -277,14 +275,14 @@ export const CareerChampionsHub: React.FC<CareerChampionsHubProps> = ({
         ? safeBracket[phase]
         : [safeBracket?.[phase]].filter(Boolean);
 
-      const match = bracketMatches.find((m: any) => m && (m.hId === careerClTeam.id || m.aId === careerClTeam.id));
+      const match = bracketMatches.find((m: any) => m && (String(m.hId) === String(careerClTeam.id) || String(m.aId) === String(careerClTeam.id)));
       if (match) {
         const isVuelta = matchday % 2 !== 0 && phase !== 'Final';
         const homeId = isVuelta ? match.aId : match.hId;
         const awayId = isVuelta ? match.hId : match.aId;
-        const rawHome = clComp.teams.find((t: any) => t.id === homeId);
-        const rawAway = clComp.teams.find((t: any) => t.id === awayId);
-        const isHome = homeId === careerClTeam.id;
+        const rawHome = clComp.teams.find((t: any) => String(t.id) === String(homeId));
+        const rawAway = clComp.teams.find((t: any) => String(t.id) === String(awayId));
+        const isHome = String(homeId) === String(careerClTeam.id);
         const rival = isHome ? rawAway : rawHome;
 
         let aggregate = null;
@@ -1166,7 +1164,7 @@ export const CareerChampionsHub: React.FC<CareerChampionsHubProps> = ({
             {/* Selector de Grupo */}
             <div className='flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar'>
               {(clComp.groups || []).map((g: any, i: number) => {
-                const isMyGroup = g.teamIds?.includes(careerClTeam?.id);
+                const isMyGroup = Boolean(careerClTeam?.id && g.teamIds?.some((id: any) => String(id) === String(careerClTeam.id)));
                 return (
                   <button
                     key={g.name}
@@ -1202,11 +1200,11 @@ export const CareerChampionsHub: React.FC<CareerChampionsHubProps> = ({
                   {(() => {
                     const g = clComp.groups[activeGroupIdx];
                     const gTeams = (clComp.teams || [])
-                      .filter((t: any) => g.teamIds?.includes(t.id))
+                      .filter((t: any) => g.teamIds?.some((id: any) => String(id) === String(t.id)))
                       .sort((a: any, b: any) => (b.pts || 0) - (a.pts || 0) || ((b.gf || 0) - (b.ga || 0)) - ((a.gf || 0) - (a.ga || 0)) || (b.gf || 0) - (a.gf || 0));
 
                     return gTeams.map((t: any, idx: number) => {
-                      const isMe = t.id === careerClTeam?.id;
+                      const isMe = Boolean(careerClTeam?.id && String(t.id) === String(careerClTeam.id));
                       const isQualifying = idx < 2;
 
                       return (
@@ -1310,7 +1308,7 @@ export const CareerChampionsHub: React.FC<CareerChampionsHubProps> = ({
                       {(Array.isArray(safeBracket[p]) ? safeBracket[p] : [safeBracket[p]]).filter(Boolean).map((m: any, mi: number) => {
                         const h = clComp.teams.find((t: any) => t.id === m.hId);
                         const a = clComp.teams.find((t: any) => t.id === m.aId);
-                        const isMyMatch = Boolean(careerClTeam?.id && (m.hId === careerClTeam.id || m.aId === careerClTeam.id));
+                        const isMyMatch = Boolean(careerClTeam?.id && (String(m.hId) === String(careerClTeam.id) || String(m.aId) === String(careerClTeam.id)));
 
                         let winner = null;
                         let isFinished = false;
@@ -1386,7 +1384,7 @@ export const CareerChampionsHub: React.FC<CareerChampionsHubProps> = ({
                                 <span className={`text-[8.5px] font-black uppercase italic truncate block max-w-full ${
                                   isWinnerH
                                     ? 'text-yellow-300'
-                                    : h?.id === careerClTeam?.id
+                                    : Boolean(h?.id && careerClTeam?.id && String(h.id) === String(careerClTeam.id))
                                     ? 'text-blue-300'
                                     : h
                                     ? 'text-white'
@@ -1459,7 +1457,7 @@ export const CareerChampionsHub: React.FC<CareerChampionsHubProps> = ({
                                 <span className={`text-[8.5px] font-black uppercase italic truncate block max-w-full ${
                                   isWinnerA
                                     ? 'text-yellow-300'
-                                    : a?.id === careerClTeam?.id
+                                    : Boolean(a?.id && careerClTeam?.id && String(a.id) === String(careerClTeam.id))
                                     ? 'text-blue-300'
                                     : a
                                     ? 'text-white'
@@ -1588,8 +1586,8 @@ export const CareerChampionsHub: React.FC<CareerChampionsHubProps> = ({
                       {h.results?.map((r: any, ri: number) => {
                         const rawHome = clComp.teams.find((t: any) => t.id === r.hId);
                         const rawAway = clComp.teams.find((t: any) => t.id === r.aId);
-                        const isHomeMe = r.hId === careerClTeam?.id;
-                        const isAwayMe = r.aId === careerClTeam?.id;
+                        const isHomeMe = Boolean(careerClTeam?.id && String(r.hId) === String(careerClTeam.id));
+                        const isAwayMe = Boolean(careerClTeam?.id && String(r.aId) === String(careerClTeam.id));
                         const isMe = isHomeMe || isAwayMe;
 
                         const home = isHomeMe ? { ...rawHome, ...team } : rawHome;

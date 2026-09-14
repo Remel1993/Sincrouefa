@@ -436,12 +436,10 @@ export const CareerView = ({
   // La Champions del modo carrera ES la Champions global ('C1') sincronizada
   const cl = clInfo;
   const isClQualified = useMemo(() => {
-    if (career.clQualified) return true;
-    if (clComp?.careerTeamId && clComp.careerTeamId === career.teamId) return true;
-    if (clComp?.careerTeamName && team?.name && clComp.careerTeamName === team.name) return true;
-    if (clInfo && !clInfo.notQualified && clInfo.alive) return true;
-    return false;
-  }, [clInfo, career.clQualified, career.teamId, clComp, team]);
+    if (!team?.name) return false;
+    // La clasificación continental se vincula estrictamente al club actual del mánager
+    return Boolean(clComp?.teams?.some((t: any) => t.name === team.name));
+  }, [clComp?.teams, team?.name]);
 
   const clPhaseText = (championsFinished || clComp?.phase === 'Terminado' || clComp?.showWinner)
     ? 'Finalizada'
@@ -461,12 +459,10 @@ export const CareerView = ({
 
   // La Europa League del modo carrera sincronizada con C3
   const isUelQualified = useMemo(() => {
-    if (career.uelQualified) return true;
-    if (uelComp?.careerTeamId && uelComp.careerTeamId === career.teamId) return true;
-    if (uelComp?.careerTeamName && team?.name && uelComp.careerTeamName === team.name) return true;
-    if (uelInfo && !uelInfo.notQualified && uelInfo.alive) return true;
-    return false;
-  }, [uelInfo, career.uelQualified, career.teamId, uelComp, team]);
+    if (!team?.name) return false;
+    // La clasificación continental a UEL se vincula estrictamente al club actual del mánager
+    return Boolean(uelComp?.teams?.some((t: any) => t.name === team.name));
+  }, [uelComp?.teams, team?.name]);
 
   const uelPhaseText = (uelComp?.phase === 'Terminado' || uelComp?.showWinner)
     ? 'Finalizada'
@@ -613,8 +609,7 @@ export const CareerView = ({
           color2: '#3b82f6'
         };
 
-        const careerClTeam = clTeams.find((t: any) => t.id === clComp?.careerTeamId) ||
-          clTeams.find((t: any) => t.name === (clComp?.careerTeamName || team?.name)) || null;
+        const careerClTeam = team?.name ? (clTeams.find((t: any) => t.name === team.name) || null) : null;
 
         const phaseKey = ['Octavos', 'Cuartos', 'Semis'].find(p => (entry.phase === p || (entry.competitionLabel || '').includes(p) || (entry.matchday || '').toString().includes(p)));
         if (phaseKey && clComp?.bracket?.[phaseKey] && careerClTeam) {
@@ -673,8 +668,7 @@ export const CareerView = ({
           color2: '#f97316'
         };
 
-        const careerUelTeam = uelTeams.find((t: any) => t.id === uelComp?.careerTeamId) ||
-          uelTeams.find((t: any) => t.name === (uelComp?.careerTeamName || team?.name)) || null;
+        const careerUelTeam = team?.name ? (uelTeams.find((t: any) => t.name === team.name) || null) : null;
 
         const phaseKey = ['Dieciseisavos', 'Octavos', 'Cuartos', 'Semis'].find(p => (entry.phase === p || (entry.competitionLabel || '').includes(p) || (entry.matchday || '').toString().includes(p)));
         if (phaseKey && uelComp?.bracket?.[phaseKey] && careerUelTeam) {
@@ -830,9 +824,8 @@ export const CareerView = ({
     }
 
     // Identificar el equipo del modo carrera en Champions (C1)
-    const careerClTeam = isClQualified ? (
-      clTeams.find((t: any) => t.id === clComp?.careerTeamId) ||
-      clTeams.find((t: any) => t.name === (clComp?.careerTeamName || team?.name)) || null
+    const careerClTeam = (isClQualified && team?.name) ? (
+      clTeams.find((t: any) => t.name === team.name) || null
     ) : null;
     const isUserInCl = isClQualified && !!careerClTeam;
 
@@ -1075,12 +1068,16 @@ export const CareerView = ({
     });
   };
 
-  // Si la liga finaliza y no se ha firmado, ofrecer el aviso modal
+  const isClActiveForMe = Boolean(isClQualified && !championsFinished && clInfo?.alive);
+  const isUelActiveForMe = Boolean(isUelQualified && !uelFinished && uelInfo?.alive);
+  const hasPendingEuropeanMatches = isClActiveForMe || isUelActiveForMe;
+
+  // Si la liga finaliza y no quedan partidos europeos pendientes ni se ha firmado, ofrecer el aviso modal
   useEffect(() => {
-    if (divisionFinished && !reviewDone && !contractSigned) {
+    if (divisionFinished && !hasPendingEuropeanMatches && !reviewDone && !contractSigned) {
       setShowEndSeasonModal(true);
     }
-  }, [divisionFinished, reviewDone, contractSigned]);
+  }, [divisionFinished, hasPendingEuropeanMatches, reviewDone, contractSigned]);
 
   const draws = useMemo(() => log.filter(l => l.result === 'D').length, [log]);
 
@@ -1642,8 +1639,8 @@ export const CareerView = ({
                       </button>
                     )}
 
-                    {/* Botón de Champions League cuando el equipo sigue vivo en eliminatorias activas (sólo antes del final de temporada) */}
-                    {isClQualified && !championsFinished && careerCurrentWeek < 40 && clInfo?.alive && (
+                    {/* Botón de Champions League cuando el equipo sigue vivo en eliminatorias activas */}
+                    {isClQualified && !championsFinished && careerCurrentWeek <= 42 && clInfo?.alive && (
                       <div className='space-y-1.5'>
                         {isChampionsDate ? (
                           <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
@@ -1681,8 +1678,8 @@ export const CareerView = ({
                       </div>
                     )}
 
-                    {/* Ver Champions ya finalizada o club clasificado al término de temporada */}
-                    {isClQualified && (championsFinished || careerCurrentWeek >= 40 || !clInfo?.alive) && (
+                    {/* Ver Champions ya finalizada o club no con vida europea */}
+                    {isClQualified && (championsFinished || careerCurrentWeek > 42 || !clInfo?.alive) && (
                       <button
                         onClick={() => setTab('cl')}
                         className='w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-2xl text-[9.5px] font-black uppercase italic tracking-widest active:scale-95 transition-all shadow-md flex items-center justify-center gap-2 border border-blue-400/20'
@@ -1695,7 +1692,7 @@ export const CareerView = ({
                     {/* Ver Europa League si está clasificado */}
                     {isUelQualified && (
                       <div className='pt-1'>
-                        {!uelFinished && isEuropaDate && careerCurrentWeek < 40 && uelInfo?.alive ? (
+                        {!uelFinished && isEuropaDate && careerCurrentWeek <= 42 && uelInfo?.alive ? (
                           <div className='space-y-1.5'>
                             <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
                               <button
@@ -1741,8 +1738,8 @@ export const CareerView = ({
                       </div>
                     )}
 
-                    {/* Botón para iniciar nueva temporada global cuando Champions League ha finalizado */}
-                    {(championsFinished || careerCurrentWeek >= 40) && onNewSeason && (
+                    {/* Botón para iniciar nueva temporada global cuando todas las competiciones activas han concluido */}
+                    {onNewSeason && (careerCurrentWeek >= 40 || divisionFinished) && (!isClActiveForMe && !isUelActiveForMe) && (
                       <button
                         onClick={onNewSeason}
                         className='w-full bg-amber-500 hover:bg-amber-400 text-slate-950 py-3.5 rounded-2xl text-[10px] font-black uppercase italic tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 border border-amber-300/60'
@@ -2186,14 +2183,14 @@ export const CareerView = ({
                       </button>
                     )}
                     <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
-                      {onOpenChampions && isClQualified && !championsFinished && careerCurrentWeek < 40 ? (
+                      {onOpenChampions && isClQualified && !championsFinished && careerCurrentWeek <= 42 && clInfo?.alive ? (
                         <button
                           onClick={onOpenChampions}
                           className='bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-2xl text-[10px] font-black uppercase italic tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer'
                         >
                           <Trophy size={14} /> Jugar Champions
                         </button>
-                      ) : onOpenUel && isUelQualified && !uelFinished && careerCurrentWeek < 40 ? (
+                      ) : onOpenUel && isUelQualified && !uelFinished && careerCurrentWeek <= 42 && uelInfo?.alive ? (
                         <button
                           onClick={onOpenUel}
                           className='bg-amber-600 hover:bg-amber-500 text-white py-3 rounded-2xl text-[10px] font-black uppercase italic tracking-widest shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer'

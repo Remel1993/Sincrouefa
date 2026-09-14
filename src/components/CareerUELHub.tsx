@@ -71,12 +71,11 @@ export const CareerUELHub: React.FC<CareerUELHubProps> = ({
   }, [uelComp, clComp]);
 
   // Identificar el equipo del modo carrera dentro de la UEFA Europa League (C3)
+  // Siempre se vincula al equipo que actualmente entrena el mánager para evitar desincronizaciones al cambiar de club
   const careerUelTeam = useMemo(() => {
-    if (!safeUelComp?.teams?.length || !team) return null;
-    return safeUelComp.teams.find((t: any) => t.id === safeUelComp.careerTeamId) ||
-      safeUelComp.teams.find((t: any) => t.name === (safeUelComp.careerTeamName || team.name)) ||
-      safeUelComp.teams.find((t: any) => t.id === safeUelComp.userTeamId) || null;
-  }, [safeUelComp, team]);
+    if (!safeUelComp?.teams?.length || !team?.name) return null;
+    return safeUelComp.teams.find((t: any) => t.name === team.name) || null;
+  }, [safeUelComp?.teams, team?.name]);
 
   const phase = safeUelComp?.phase || 'Dieciseisavos';
   const matchday = safeUelComp?.matchday || 0;
@@ -141,12 +140,10 @@ export const CareerUELHub: React.FC<CareerUELHubProps> = ({
   }, [career?.trainedMatchKey, career?.trainedUelMatchKey, uelMatchKey]);
 
   // Determinar si el club no clasificó a UEFA Europa League esta temporada
+  // Si el club que entrena el usuario no está entre los participantes de C3, no está clasificado
   const isNotQualified = useMemo(() => {
-    if (careerUelTeam) return false;
-    if (career?.uelQualified) return false;
-    if (uelInfo && !uelInfo.notQualified) return false;
-    return true;
-  }, [careerUelTeam, career?.uelQualified, uelInfo]);
+    return !careerUelTeam;
+  }, [careerUelTeam]);
 
   // Buscar último partido jugado en UEL
   const lastPlayedUELMatch = useMemo(() => {
@@ -248,15 +245,15 @@ export const CareerUELHub: React.FC<CareerUELHubProps> = ({
         ? safeBracket[phase]
         : [safeBracket?.[phase]].filter(Boolean);
 
-      const match = bracketMatches.find((m: any) => m && (m.hId === careerUelTeam.id || m.aId === careerUelTeam.id));
+      const match = bracketMatches.find((m: any) => m && (String(m.hId) === String(careerUelTeam.id) || String(m.aId) === String(careerUelTeam.id)));
       if (!match) return null;
 
       const isVuelta = matchday % 2 !== 0 && phase !== 'Final';
       const homeId = isVuelta ? match.aId : match.hId;
       const awayId = isVuelta ? match.hId : match.aId;
-      const isHome = homeId === careerUelTeam.id;
+      const isHome = String(homeId) === String(careerUelTeam.id);
 
-      const fallbackRival = (safeUelComp.teams || []).find((t: any) => t && t.id !== careerUelTeam.id) || {
+      const fallbackRival = (safeUelComp.teams || []).find((t: any) => t && String(t.id) !== String(careerUelTeam.id)) || {
         id: 17,
         name: 'Rival Europeo',
         att: 3,
@@ -266,8 +263,8 @@ export const CareerUELHub: React.FC<CareerUELHubProps> = ({
         color2: '#f59e0b'
       };
 
-      const homeTeam = safeUelComp.teams.find((t: any) => t && t.id === homeId) || (isHome ? careerUelTeam : fallbackRival);
-      const awayTeam = safeUelComp.teams.find((t: any) => t && t.id === awayId) || (!isHome ? careerUelTeam : fallbackRival);
+      const homeTeam = safeUelComp.teams.find((t: any) => t && String(t.id) === String(homeId)) || (isHome ? careerUelTeam : fallbackRival);
+      const awayTeam = safeUelComp.teams.find((t: any) => t && String(t.id) === String(awayId)) || (!isHome ? careerUelTeam : fallbackRival);
       const rival = isHome ? awayTeam : homeTeam;
 
       let aggregate = null;
@@ -859,7 +856,7 @@ export const CareerUELHub: React.FC<CareerUELHubProps> = ({
                       if (!m) return null;
                       const h = safeUelComp?.teams?.find((t: any) => t.id === m.hId) || (m.hId ? { name: `Equipo ${m.hId}` } : null);
                       const a = safeUelComp?.teams?.find((t: any) => t.id === m.aId) || (m.aId ? { name: `Equipo ${m.aId}` } : null);
-                      const isUserMatch = Boolean(careerUelTeam?.id && (m.hId === careerUelTeam.id || m.aId === careerUelTeam.id));
+                      const isUserMatch = Boolean(careerUelTeam?.id && (String(m.hId) === String(careerUelTeam.id) || String(m.aId) === String(careerUelTeam.id)));
 
                       const hasIda = m.sh !== null && m.sh !== undefined && m.sa !== null && m.sa !== undefined;
                       const hasVuelta = isTwoLegged && m.sh2 !== null && m.sh2 !== undefined && m.sa2 !== null && m.sa2 !== undefined;
@@ -886,7 +883,7 @@ export const CareerUELHub: React.FC<CareerUELHubProps> = ({
                       const isWinnerA = isFinishedMatch && winnerId === m.aId;
                       const isLoserA = isFinishedMatch && winnerId !== null && winnerId !== m.aId;
 
-                      const isUserEliminatedInMatch = isUserMatch && isFinishedMatch && ((m.hId === careerUelTeam?.id && isLoserH) || (m.aId === careerUelTeam?.id && isLoserA));
+                      const isUserEliminatedInMatch = isUserMatch && isFinishedMatch && ((String(m.hId) === String(careerUelTeam?.id) && isLoserH) || (String(m.aId) === String(careerUelTeam?.id) && isLoserA));
 
                       return (
                         <div
@@ -940,7 +937,7 @@ export const CareerUELHub: React.FC<CareerUELHubProps> = ({
                               <span className={`text-[8.5px] font-black uppercase italic truncate block max-w-full ${
                                 isWinnerH
                                   ? 'text-amber-300'
-                                  : h?.id === careerUelTeam?.id
+                                  : Boolean(h?.id && careerUelTeam?.id && String(h.id) === String(careerUelTeam.id))
                                   ? 'text-amber-200'
                                   : h?.name
                                   ? 'text-white'
@@ -1011,7 +1008,7 @@ export const CareerUELHub: React.FC<CareerUELHubProps> = ({
                               <span className={`text-[8.5px] font-black uppercase italic truncate block max-w-full ${
                                 isWinnerA
                                   ? 'text-amber-300'
-                                  : a?.id === careerUelTeam?.id
+                                  : Boolean(a?.id && careerUelTeam?.id && String(a.id) === String(careerUelTeam.id))
                                   ? 'text-amber-200'
                                   : a?.name
                                   ? 'text-white'
@@ -1103,7 +1100,7 @@ export const CareerUELHub: React.FC<CareerUELHubProps> = ({
                     {(hist.results || []).map((r: any, rIdx: number) => {
                       const h = safeUelComp.teams.find((t: any) => t.id === r.hId) || { name: 'Local' };
                       const a = safeUelComp.teams.find((t: any) => t.id === r.aId) || { name: 'Visitante' };
-                      const isUser = careerUelTeam && (r.hId === careerUelTeam.id || r.aId === careerUelTeam.id);
+                      const isUser = Boolean(careerUelTeam?.id && (String(r.hId) === String(careerUelTeam.id) || String(r.aId) === String(careerUelTeam.id)));
                       return (
                         <div
                           key={rIdx}
@@ -1151,7 +1148,7 @@ export const CareerUELHub: React.FC<CareerUELHubProps> = ({
 
               <div className='grid grid-cols-2 gap-2 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar'>
                 {(safeUelComp?.teams || []).map((t: any) => {
-                  const isUser = careerUelTeam && t.id === careerUelTeam.id;
+                  const isUser = Boolean(careerUelTeam?.id && String(t.id) === String(careerUelTeam.id));
                   return (
                     <div
                       key={t.id}
